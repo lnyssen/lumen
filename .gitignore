@@ -1,0 +1,13 @@
+# état runtime du panneau
+lumen-state.json
+lumen-photo.bin
+
+# système
+.DS_Store
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/

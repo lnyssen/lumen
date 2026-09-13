@@ -1,0 +1,2743 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>LUMEN</title>
+
+<!-- ===== PWA : ajout à l'écran d'accueil iPhone, plein écran ===== -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LUMEN">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="lumen-icon-180.png">
+<link rel="manifest" href="lumen.webmanifest">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  :root{
+    --ink:#ffffff; --paper:#000000;
+    --line:#ffffff; --line-soft:rgba(255,255,255,.28);
+    --dim:rgba(255,255,255,.55); --dimmer:rgba(255,255,255,.4);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;overflow:hidden}
+  body{ background:var(--paper); font-family:'Inter','Helvetica Neue',Arial,sans-serif; color:var(--ink); }
+  .frame{ position:fixed;inset:0; height:100dvh; max-width:520px;margin:0 auto; overflow:hidden;
+    color:var(--ink); background:var(--paper);
+    display:flex; flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 16px) 18px calc(env(safe-area-inset-bottom) + 2px); }
+
+  /* verrou portrait */
+  @media screen and (orientation: landscape) and (max-height: 520px){
+    .frame{
+      width:100vh; height:100vw;
+      transform:translate(-50%,-50%) rotate(-90deg);
+      transform-origin:center center;
+      position:fixed; top:50%; left:50%; max-width:none;
+    }
+  }
+
+  /* le fond n'est plus un dégradé : c'est l'aperçu, cerné d'un filet net */
+  .bg{ order:3; width:100%; position:relative; margin:14px 0 0; }
+  .screen-frame{
+    position:relative; width:var(--sq); aspect-ratio:1/1; margin:0 auto;
+    background:#000; outline:2px solid var(--line); overflow:hidden;
+  }
+  :root{ --sq: min(100% , 100vw - 36px,
+    100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 400px); }
+  .bg canvas{
+    position:absolute;top:50%;left:50%;
+    width:100%;height:100%;
+    transform:translate(-50%,-50%);
+    image-rendering:auto; display:block; touch-action:none;
+  }
+  .screen-frame::after{ content:none; }
+
+  /* légende de l'aperçu, cartel posé dans le coin */
+  .screen-tag{ position:absolute; left:0; bottom:0; z-index:2;
+    background:var(--ink); color:var(--paper);
+    font-size:8px; font-weight:700; letter-spacing:1px; text-transform:uppercase;
+    padding:4px 8px; pointer-events:none; }
+
+  /* ─ EN-TÊTE ─ */
+  .brand-wrap{ order:0; display:flex; justify-content:space-between; align-items:flex-start;
+    padding-bottom:10px; }
+  .brand{ font-size:30px; font-weight:800; letter-spacing:-1px; line-height:.9;
+    text-transform:uppercase; }
+  .head-right{ display:flex; flex-direction:column; align-items:flex-end; gap:0; }
+  .ip{ font-size:8px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;
+    color:var(--dim); display:flex; align-items:center; gap:5px; cursor:pointer; line-height:1.5; }
+  .ip svg{ display:none; }
+  .ip-dot{ width:7px;height:7px;border-radius:50%;background:#39d353;flex-shrink:0;
+    box-shadow:0 0 0 2px rgba(57,211,83,.25); }
+  .ip-dot.off{ background:transparent;box-shadow:none;
+    outline:1.5px solid var(--dim);outline-offset:-1px; }
+  .ip-state{ font-weight:700;color:var(--ink); }
+  .ip.offline .ip-state{ color:var(--dim); }
+  .ip-meta{ font-size:8px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
+    color:var(--dim);text-align:right;line-height:1.5; }
+
+  /* les anciens boutons ronds de l'en-tête disparaissent : les modes passent en onglets */
+  .hbtn{ display:none; }
+
+  /* ─ ONGLETS DE MODE ─ */
+
+  /* ─ LIGNE ANIMATION (index) ─ */
+  .pal-chip{ display:none; }
+  .anim-bar{ order:4; display:flex; align-items:baseline; gap:12px; width:100%;
+    padding:13px 2px; cursor:pointer; border:none; background:transparent; color:var(--ink);
+    border-bottom:1px solid var(--line); font-family:inherit; text-align:left; }
+  .anim-bar .ic{ display:none; }
+  .anim-bar .idx{ font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    width:76px;color:var(--dim);flex-shrink:0; }
+  .anim-bar .nm{ flex:1;font-size:16px;font-weight:700;letter-spacing:-.2px;text-transform:none; }
+  .anim-bar .ct{ font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    color:var(--dim);flex-shrink:0; }
+  .anim-bar .gr{ width:13px;height:13px;flex-shrink:0;opacity:.6;align-self:center; }
+
+  /* ─ RÉGLAGES ─ */
+  .dock{ order:5; display:flex; flex-direction:column; margin-top:auto; }
+  .params-row{ display:flex; flex-direction:column; }
+  .params-empty{ font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    color:var(--dimmer);padding:12px 2px;border-bottom:1px solid var(--line); }
+  .knob{ display:flex; align-items:center; padding:9px 2px; border-bottom:1px solid var(--line); }
+  .knob-lab{ font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+    color:var(--dim);width:76px;flex-shrink:0; }
+  .knob-track{ flex:1;height:2px;background:var(--line-soft);margin:0 14px;position:relative;
+    cursor:pointer; }
+  .knob-fill{ position:absolute;left:0;top:-2px;height:6px;background:var(--ink); }
+  .knob-val{ font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+    width:38px;text-align:right;flex-shrink:0; }
+  .knob input[type=range]{ display:none; }
+
+  /* bascule (toggle) en langage Swiss : deux mots, l'actif souligné */
+  .toggle-swiss{ display:flex;align-items:center;padding:9px 2px;border-bottom:1px solid var(--line); }
+  .toggle-swiss .knob-lab{ flex:1; }
+  .toggle-swiss .tg{ display:flex;gap:0;border:1px solid var(--line); }
+  .toggle-swiss .tg span{ font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+    padding:5px 11px;cursor:pointer; }
+  .toggle-swiss .tg span.on{ background:var(--ink);color:var(--paper); }
+
+  /* champ de saisie du texte */
+  .text-cell{ padding:8px 0 4px; border-bottom:1px solid var(--line); margin-bottom:2px; }
+  .text-cell input{ width:100%; box-sizing:border-box; background:transparent;
+    border:1px solid var(--line); color:var(--ink); font-family:inherit;
+    font-size:16px; font-weight:600; letter-spacing:.5px; padding:12px 12px;
+    outline:none; text-transform:uppercase; }
+  .text-cell input::placeholder{ color:var(--dimmer); font-weight:500; letter-spacing:1px; }
+  .text-cell input:focus{ border-color:var(--ink); }
+
+  /* barre de dessin */
+  .draw-bar{ display:flex;align-items:center;justify-content:space-between;
+    padding:10px 2px;border-bottom:1px solid var(--line); }
+  .draw-act{ font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+    cursor:pointer;padding:6px 12px;border:1px solid var(--line); }
+  .draw-act.send{ background:var(--ink);color:var(--paper); }
+  .draw-swatches{ display:flex;gap:6px;align-items:center; }
+  .draw-sw{ width:20px;height:20px;border-radius:50%;cursor:pointer;
+    border:1.5px solid transparent;box-sizing:border-box; }
+  .draw-sw.on{ border-color:var(--ink);box-shadow:0 0 0 2px var(--paper) inset; }
+
+  .spacer-fill{ order:6; flex:1; min-height:10px; }
+
+  /* ─ DOCK BAS ─ */
+  .console-row{ order:7; display:flex; justify-content:space-between; align-items:center;
+    margin-top:16px; padding-top:14px; border-top:2px solid var(--line); }
+  .c-btn{ width:40px; height:40px; border-radius:50%; border:1.5px solid var(--ink);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    background:transparent; flex-shrink:0; transition:background .12s; }
+  .c-btn .ico{ display:block; width:19px; height:19px; color:var(--ink); }
+  .c-btn.on{ background:var(--ink); }
+  .c-btn.on .ico{ color:var(--paper); }
+  .c-btn:active{ background:var(--line-soft); }
+  /* le bouton d'alimentation : cercle plein blanc — l'ancre ON, allumé par défaut */
+  .c-power{ background:var(--ink); }
+  .c-power .ico{ color:var(--paper); }
+  .c-power:active{ background:#222; }
+  .c-btn .bri-val{ display:none; }
+
+  /* ─ MODALES (feuilles plein cadre) ─ */
+  .modal-overlay{ position:fixed;inset:0;z-index:10;background:var(--paper);
+    opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.3,.85,.3,1),opacity .01s;
+    transform:translateY(100%);
+    display:flex;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 20px) 18px calc(env(safe-area-inset-bottom) + 20px);
+    max-width:520px;margin:0 auto; }
+  .modal-overlay.show{ opacity:1;pointer-events:auto;transform:translateY(0); }
+  .modal-box{ display:flex;flex-direction:column;flex:1;min-height:0;background:transparent; }
+  .modal-head{ display:flex;justify-content:space-between;align-items:center;
+    padding-bottom:12px;border-bottom:2px solid var(--line);margin-bottom:0; }
+  .modal-title{ font-size:22px;font-weight:800;letter-spacing:-.5px;text-transform:none; }
+  .pal-name{ font-weight:600;color:var(--dim);font-size:13px; }
+  .modal-close{ font-size:20px;font-weight:400;cursor:pointer;width:30px;text-align:right; }
+
+  /* liste des animations, numérotée */
+  .anim-grid{ display:flex;flex-direction:column;flex:1;overflow-y:auto;
+    scrollbar-width:none;min-height:0; }
+  .anim-grid::-webkit-scrollbar{display:none}
+  .anim-cat{ font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    color:var(--dimmer);padding:15px 0 4px;border-bottom:1px solid var(--line-soft); }
+  .anim-cell{ display:flex;align-items:baseline;gap:12px;padding:12px 2px;cursor:pointer;
+    border:none;background:transparent;color:var(--ink);font-family:inherit;text-align:left;
+    border-bottom:1px solid var(--line-soft);width:100%; }
+  .anim-cell .ic{ display:none; }
+  .anim-cell .cnum{ font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;
+    width:30px;color:var(--dimmer);flex-shrink:0; }
+  .anim-cell b{ font-size:16px;font-weight:600;flex:1; }
+  .anim-cell.on{ background:var(--ink);color:var(--paper);margin:0 -18px;padding-left:20px;padding-right:20px; }
+  .anim-cell.on .cnum{ color:rgba(0,0,0,.5); }
+
+  /* grille des palettes : la couleur revient, pastilles carrées qui remplissent */
+  .pal-grid{ display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+    background:var(--line-soft);border:1px solid var(--line-soft);
+    grid-auto-rows:min-content;align-content:start;
+    overflow-y:auto;scrollbar-width:none;min-height:0;flex:1;margin-top:0; }
+  .pal-grid::-webkit-scrollbar{display:none}
+  .pal-cell{ background:var(--paper);cursor:pointer;display:flex;flex-direction:column; }
+  .pal-cell canvas{ display:block;width:100%;aspect-ratio:1/1;background:#000; }
+  .pal-cell b{ font-size:7.5px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;
+    padding:3px 4px 4px;text-align:center;color:var(--ink);line-height:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .pal-cell.on{ background:var(--ink); }
+  .pal-cell.on b{ color:var(--paper); }
+
+  /* rangées génériques de modale (veille, luminosité, ip) */
+  .modal-row{ display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:14px 2px;border-bottom:1px solid var(--line-soft); }
+  .modal-row-lab{ font-size:13px;font-weight:600; }
+  .modal-row-sub{ font-size:11px;color:var(--dim);margin-top:2px; }
+  .switch{ width:44px;height:24px;border:1.5px solid var(--line);border-radius:0;position:relative;
+    cursor:pointer;flex-shrink:0; }
+  .switch::after{ content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;
+    background:var(--ink);transition:.15s; }
+  .switch.on{ background:var(--ink); }
+  .switch.on::after{ left:23px;background:var(--paper); }
+  .scene-slots{ display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0; }
+  .scene-slot{ aspect-ratio:1/1;border:1px solid var(--line);display:flex;align-items:center;
+    justify-content:center;cursor:pointer;overflow:hidden;position:relative; }
+  .scene-slot canvas{ width:100%;height:100%;display:block; }
+  .scene-slot .empty{ font-size:22px;font-weight:300;color:var(--dimmer); }
+  .scene-mode-lab{ font-size:11px;letter-spacing:.5px;text-transform:uppercase;
+    color:var(--dim);padding:12px 0 0; }
+  .swiss-time{ background:var(--paper);border:1.5px solid var(--line);border-radius:0;
+    color:var(--ink);padding:6px 10px;font-family:inherit;font-size:14px;font-weight:700;
+    font-variant-numeric:tabular-nums; }
+  .scene-toggle-btn{ font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+    text-align:center;padding:13px;border:1px solid var(--line);cursor:pointer;margin-top:8px; }
+  .scene-toggle-btn.primary,.scene-toggle-btn.send{ background:var(--ink);color:var(--paper); }
+  .bri-value,.bri-modal-value{ font-size:40px;font-weight:800;text-align:center;
+    padding:20px 0;font-variant-numeric:tabular-nums; }
+  .bri-slider input[type=range]{ width:100%; }
+
+  .draw-bar.glass,.anim-bar.glass,.console-row.glass{ background:transparent; }
+</style>
+</head>
+<body>
+<!-- Filtre de réfraction Liquid Glass (iOS 26) — distorsion optique du fond -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="lumenGlass" x="-20%" y="-20%" width="140%" height="140%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="7" result="noise"/>
+    <feGaussianBlur in="noise" stdDeviation="1.4" result="softNoise"/>
+    <feDisplacementMap in="SourceGraphic" in2="softNoise" scale="16" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div class="frame">
+  <div class="brand-wrap">
+    <div class="brand">Lumen</div>
+    <div class="head-right">
+      <div class="ip" id="ipRow"><span class="ip-dot" id="ipDot"></span><span class="ip-state" id="ipState">En ligne</span></div>
+      <div class="ip-meta" id="ipText">192.168.129.112</div>
+    </div>
+  </div>
+
+  <div class="bg"><div class="screen-frame"><canvas id="bgCanvas" width="768" height="768"></canvas><div class="screen-tag" id="screenTag">Plasma — Air</div></div></div>
+
+  <div class="pal-chip" id="palChip"><i id="palChipDot"></i><b id="palChipName">Air</b></div>
+
+  <div class="dock">
+    <input type="file" id="photoInput" accept="image/*" style="display:none">
+    <div class="glass draw-bar" id="drawBar" style="display:none">
+      <div class="draw-act" id="drawClearBtn">Effacer</div>
+      <div class="draw-swatches" id="drawSwatches"></div>
+      <div class="draw-act send" id="drawSendBtn">Envoyer</div>
+    </div>
+    <button class="glass anim-bar" id="animBar" type="button" aria-label="Choisir l'animation">
+      <span class="ic" id="animBarIcon"></span>
+      <span class="idx">Animation</span>
+      <span class="nm" id="animBarName">Plasma</span>
+      <span class="ct" id="animBarCat">Géométrique</span>
+      <svg class="gr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <button class="glass anim-bar" id="palRow" type="button" aria-label="Choisir la palette" style="border-bottom:1px solid var(--line)">
+      <span class="idx">Palette</span>
+      <span class="nm" id="palRowName">Air</span>
+      <span class="ct" id="palRowCount"></span>
+      <svg class="gr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="params-row" id="paramsRow"></div>
+    <div class="spacer-fill"></div>
+    <div class="glass console-row">
+      <div class="c-btn" id="pauseBtn" aria-label="Pause">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8.4" y="6" width="2.8" height="12" rx="0.6" fill="currentColor" stroke="none"/><rect x="12.8" y="6" width="2.8" height="12" rx="0.6" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div class="c-btn" id="sleepBtn" aria-label="Veille">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><path d="M12 8.5V12l2.3 1.4"/></svg>
+      </div>
+      <div class="c-btn" id="shuffleBtn" aria-label="Aléatoire">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 6 18 6 18 9.5"/><path d="M6 18L18 6"/><polyline points="18 14.5 18 18 14.5 18"/><path d="M13.5 13.5 18 18"/><path d="M6 6 10 10"/></svg>
+      </div>
+      <div class="c-btn c-power" id="powerBtn" aria-label="Alimentation">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6.5v6"/><path d="M8 9.2a5.4 5.4 0 1 0 8 0"/></svg>
+      </div>
+      <div class="c-btn" id="dayBtn" aria-label="Journée">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><path d="M12 6a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div class="c-btn" id="scenesBtn" aria-label="Scènes">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 5.5l2 4.2 4.6.6-3.4 3.2.9 4.5L12 15.9 7.9 18l.9-4.5L5.4 10.3l4.6-.6z"/></svg>
+      </div>
+      <div class="c-btn" id="briBtn" aria-label="Lumière">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.3"/><line x1="12" y1="6" x2="12" y2="7.5"/><line x1="12" y1="16.5" x2="12" y2="18"/><line x1="6" y1="12" x2="7.5" y2="12"/><line x1="16.5" y1="12" x2="18" y2="12"/><line x1="7.8" y1="7.8" x2="8.8" y2="8.8"/><line x1="15.2" y1="15.2" x2="16.2" y2="16.2"/><line x1="7.8" y1="16.2" x2="8.8" y2="15.2"/><line x1="15.2" y1="8.8" x2="16.2" y2="7.8"/></svg>
+        <span class="bri-val" id="briLabel"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div class="modal-overlay" id="animOverlay">
+    <div class="modal-box glass">
+      <div class="modal-head">
+        <div class="modal-title">Animation</div>
+        <div class="modal-close" data-close="animOverlay">&#10005;</div>
+      </div>
+      <div class="anim-grid" id="animGrid"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="palOverlay">
+    <div class="modal-box glass">
+      <div class="modal-head">
+        <div class="modal-title">Palette <span class="pal-name" id="palSheetName">Air</span></div>
+        <div class="modal-close" data-close="palOverlay">&#10005;</div>
+      </div>
+      <div class="pal-grid" id="palGrid"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="scenesOverlay">
+    <div class="glass modal-box">
+      <div class="modal-head"><div class="modal-title">Scènes</div><div class="modal-close" data-close="scenesOverlay">&#10005;</div></div>
+      <div class="scene-mode-lab" id="sceneModeLab">Touche un emplacement pour rappeler</div>
+      <div class="scene-slots" id="sceneSlots"></div>
+      <div class="scene-toggle-btn" id="toggleSaveMode">Enregistrer une scène</div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="sleepOverlay">
+    <div class="modal-box">
+      <div class="modal-head"><div class="modal-title">Veille</div><div class="modal-close" data-close="sleepOverlay">&#10005;</div></div>
+      <div class="modal-row"><div><div class="modal-row-lab">Extinction programmée</div><div class="modal-row-sub">Éteint le panneau à l'heure choisie</div></div><div class="switch" id="sleepSwitch"></div></div>
+      <div class="modal-row"><div><div class="modal-row-lab">Heure</div><div class="modal-row-sub" id="sleepTimeSub">23:00</div></div><input type="time" id="sleepTime" value="23:00" class="swiss-time"></div>
+      <div class="modal-row"><div><div class="modal-row-lab">Minuteur</div><div class="modal-row-sub" id="timerSub">Éteindre après un délai</div></div></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <div class="scene-toggle-btn" data-timer="15" style="flex:1">15 min</div>
+        <div class="scene-toggle-btn" data-timer="30" style="flex:1">30 min</div>
+        <div class="scene-toggle-btn" data-timer="60" style="flex:1">1 h</div>
+        <div class="scene-toggle-btn" data-timer="0" style="flex:1">Annuler</div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="briOverlay">
+    <div class="glass modal-box">
+      <div class="modal-head"><div class="modal-title">Luminosité</div><div class="modal-close" data-close="briOverlay">&#10005;</div></div>
+      <div class="bri-value" id="briModalValue">70%</div>
+      <div class="bri-slider"><input type="range" min="5" max="100" value="70" id="briRange"></div>
+      <div class="modal-row" style="margin-top:6px"><div><div class="modal-row-lab">Adaptation automatique</div><div class="modal-row-sub">Ajuste selon la lumière ambiante</div></div><div class="switch" id="autoBriSwitch"></div></div>
+      <div class="modal-row"><div><div class="modal-row-lab">Ambiance sonore</div><div class="modal-row-sub">L'objet suit l'humeur de la pièce : vif quand ça bouge, calme dans le silence</div></div><div class="switch" id="moodSwitch"></div></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="ipOverlay">
+    <div class="glass modal-box">
+      <div class="modal-head"><div class="modal-title">Adresse du panneau</div><div class="modal-close" data-close="ipOverlay">&#10005;</div></div>
+      <div class="modal-row-sub" style="margin-bottom:12px">Adresse du panneau : une IP (192.168.1.100) ou un nom réseau (wled-xxxxxx.local). Le nom survit aux changements de réseau — idéal pour transporter l'objet.</div>
+      <input type="text" id="ipInput" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="wled-xxxxxx.local" value="192.168.129.112" style="width:100%;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.25);border-radius:12px;color:#fff;padding:14px 14px;font-family:inherit;font-size:17px;letter-spacing:.5px;text-align:center">
+      <div class="scene-toggle-btn primary" id="ipSaveBtn" style="margin-top:16px">Enregistrer</div>
+      <a href="/update" id="updateLink" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;text-align:center;color:var(--ink);font-size:13px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;padding:14px;border:1.5px solid var(--line)">Mettre à jour l'app depuis ce téléphone</a>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ PANNEAU 64x64 (moteur porté du Pi, rendu net) ============ */
+const PANEL_W = 128, PANEL_H = 128;
+const N = PANEL_W * PANEL_H;
+const CX = (PANEL_W - 1) / 2, CY = (PANEL_H - 1) / 2;
+const pixels = new Uint8ClampedArray(N * 3);
+
+/* ====================== ANIMATIONS ====================== */
+function setPx(x, y, r, g, b){
+  const i = (x + y*PANEL_W) * 3;
+  pixels[i] = r|0; pixels[i+1] = g|0; pixels[i+2] = b|0;
+}
+function fade(amount){
+  const k = 1 - amount;
+  for (let i=0; i<pixels.length; i++) pixels[i] = pixels[i] * k;
+}
+function clearBuf(){
+  for (let i=0; i<pixels.length; i++) pixels[i] = 0;
+}
+
+/* Font 5×7 (colonne-majeur, LSB = haut). Couvre A-Z, 0-9, ponctuation. */
+const FONT_DATA = {
+  ' ':[0,0,0,0,0], '!':[0,0,0x5F,0,0], '"':[0,7,0,7,0],
+  '#':[0x14,0x7F,0x14,0x7F,0x14], '$':[0x24,0x2A,0x7F,0x2A,0x12],
+  '%':[0x23,0x13,0x08,0x64,0x62], '&':[0x36,0x49,0x55,0x22,0x50],
+  "'":[0,5,3,0,0], '(':[0,0x1C,0x22,0x41,0], ')':[0,0x41,0x22,0x1C,0],
+  '*':[0x14,0x08,0x3E,0x08,0x14], '+':[0x08,0x08,0x3E,0x08,0x08],
+  ',':[0,0x50,0x30,0,0], '-':[0x08,0x08,0x08,0x08,0x08],
+  '.':[0,0x60,0x60,0,0], '/':[0x20,0x10,0x08,0x04,0x02],
+  '0':[0x3E,0x51,0x49,0x45,0x3E], '1':[0,0x42,0x7F,0x40,0],
+  '2':[0x42,0x61,0x51,0x49,0x46], '3':[0x21,0x41,0x45,0x4B,0x31],
+  '4':[0x18,0x14,0x12,0x7F,0x10], '5':[0x27,0x45,0x45,0x45,0x39],
+  '6':[0x3C,0x4A,0x49,0x49,0x30], '7':[0x01,0x71,0x09,0x05,0x03],
+  '8':[0x36,0x49,0x49,0x49,0x36], '9':[0x06,0x49,0x49,0x29,0x1E],
+  ':':[0,0x36,0x36,0,0], ';':[0,0x56,0x36,0,0],
+  '<':[0x08,0x14,0x22,0x41,0], '=':[0x14,0x14,0x14,0x14,0x14],
+  '>':[0,0x41,0x22,0x14,0x08], '?':[0x02,0x01,0x51,0x09,0x06],
+  '@':[0x32,0x49,0x79,0x41,0x3E],
+  'A':[0x7E,0x11,0x11,0x11,0x7E], 'B':[0x7F,0x49,0x49,0x49,0x36],
+  'C':[0x3E,0x41,0x41,0x41,0x22], 'D':[0x7F,0x41,0x41,0x22,0x1C],
+  'E':[0x7F,0x49,0x49,0x49,0x41], 'F':[0x7F,0x09,0x09,0x01,0x01],
+  'G':[0x3E,0x41,0x41,0x51,0x32], 'H':[0x7F,0x08,0x08,0x08,0x7F],
+  'I':[0,0x41,0x7F,0x41,0],       'J':[0x20,0x40,0x41,0x3F,0x01],
+  'K':[0x7F,0x08,0x14,0x22,0x41], 'L':[0x7F,0x40,0x40,0x40,0x40],
+  'M':[0x7F,0x02,0x04,0x02,0x7F], 'N':[0x7F,0x04,0x08,0x10,0x7F],
+  'O':[0x3E,0x41,0x41,0x41,0x3E], 'P':[0x7F,0x09,0x09,0x09,0x06],
+  'Q':[0x3E,0x41,0x51,0x21,0x5E], 'R':[0x7F,0x09,0x19,0x29,0x46],
+  'S':[0x26,0x49,0x49,0x49,0x32], 'T':[0x01,0x01,0x7F,0x01,0x01],
+  'U':[0x3F,0x40,0x40,0x40,0x3F], 'V':[0x1F,0x20,0x40,0x20,0x1F],
+  'W':[0x3F,0x40,0x38,0x40,0x3F], 'X':[0x63,0x14,0x08,0x14,0x63],
+  'Y':[0x03,0x04,0x78,0x04,0x03], 'Z':[0x61,0x51,0x49,0x45,0x43],
+};
+// Normalise (majuscules + strip accents) pour rester dans la font
+function normTxt(s){
+  return s
+    // ponctuation typographique -> équivalents ASCII présents dans la fonte
+    .replace(/[\u2018\u2019\u201B\u02BC\u00B4\u0060]/g, "'")   // apostrophes courbes -> '
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')          // guillemets -> "
+    .replace(/[\u2013\u2014\u2212]/g, '-')                        // tirets longs -> -
+    .replace(/[\u2026]/g, '...')                                    // … -> ...
+    .replace(/[\u00A0\u202F\u2009]/g, ' ')                        // espaces insécables -> espace
+    .toUpperCase()
+    .replace(/[ÀÁÂÃÄÅ]/g,'A').replace(/[ÈÉÊË]/g,'E')
+    .replace(/[ÌÍÎÏ]/g,'I').replace(/[ÒÓÔÕÖ]/g,'O')
+    .replace(/[ÙÚÛÜ]/g,'U').replace(/[Ç]/g,'C').replace(/[Ñ]/g,'N')
+    .replace(/[Œ]/g,'OE').replace(/[Æ]/g,'AE');
+}
+function getGlyph(ch){ return FONT_DATA[ch] || FONT_DATA[' ']; }
+
+/* Helper de dessin de texte (réutilisable par plusieurs animations) */
+function drawText(text, x, y, scale, r, g, b){
+  text = normTxt(text);
+  scale = Math.max(1, scale|0);
+  const stride = (5+1) * scale;
+  for (let ci=0; ci<text.length; ci++){
+    const glyph = getGlyph(text[ci]);
+    const bx = x + ci * stride;
+    if (bx > PANEL_W || bx + 5*scale < 0) continue;
+    for (let cx=0; cx<5; cx++){
+      const col = glyph[cx]; if (!col) continue;
+      for (let cy=0; cy<7; cy++){
+        if (col & (1 << cy)){
+          for (let sx=0; sx<scale; sx++) for (let sy=0; sy<scale; sy++){
+            const px = bx + cx*scale + sx, py = y + cy*scale + sy;
+            if (px>=0 && px<PANEL_W && py>=0 && py<PANEL_H) setPx(px, py, r, g, b);
+          }
+        }
+      }
+    }
+  }
+}
+function measureText(text, scale){
+  scale = Math.max(1, scale|0);
+  return text.length * (5+1) * scale - scale;
+}
+
+/* Plasma — interférences classiques, le confort des designers démo */
+function renderPlasma(t, p, pal){
+  const sp = p.speed, fr = p.freq, mx = p.mix;
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const a = Math.sin((x/fr) + t*sp);
+    const b = Math.sin((y/(fr*0.8)) + t*sp*1.3);
+    const c = Math.sin(((x+y)/(fr*1.2)) + t*sp*0.7);
+    const d = Math.sin(Math.hypot(x-CX,y-CY)/(fr*0.6) - t*sp*1.5);
+    const v = (a + b + c*mx + d*mx) / (2 + 2*mx);     // [-1..1]
+    const [r,g,bl] = pal((v + 1) * 0.5);
+    setPx(x,y,r,g,bl);
+  }
+}
+
+/* Truchet — diagonales pivotantes, sa grammaire géométrique */
+function renderTruchet(t, p, pal){
+  const cell = p.scale|0;
+  const thick = p.thick;
+  const sp = p.speed;
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const cx = (x/cell)|0, cy = (y/cell)|0;
+    // orientation pseudo-aléatoire évolutive
+    const phase = Math.sin(cx*1.7 + cy*2.3 + t*sp);
+    const lx = x % cell, ly = y % cell;
+    // distance à la diagonale courante
+    const d = (phase > 0)
+      ? Math.abs(lx - ly)
+      : Math.abs(lx - (cell - 1 - ly));
+    const on = d <= thick ? 1 : 0;
+    const v = on * (0.6 + 0.4*Math.sin(t*sp*0.5 + cx*0.3 + cy*0.4));
+    const [r,g,b] = pal(on ? Math.max(0.15, v) : 0);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Moiré — deux trames pivotantes l'une sur l'autre */
+function renderMoire(t, p, pal){
+  const f1 = p.freq1, f2 = p.freq2, sp = p.speed;
+  const a1 = t*sp*0.3, a2 = -t*sp*0.5;
+  const c1=Math.cos(a1), s1=Math.sin(a1), c2=Math.cos(a2), s2=Math.sin(a2);
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const dx = x - CX, dy = y - CY;
+    const u1 = (dx*c1 + dy*s1) * f1;
+    const u2 = (dx*c2 + dy*s2) * f2;
+    const v = (Math.sin(u1) + Math.sin(u2)) * 0.5;     // [-1..1]
+    const [r,g,b] = pal((v + 1) * 0.5);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Anneaux — concentriques pulsants */
+function renderRings(t, p, pal){
+  const sp = p.speed, n = p.count, sharp = p.sharp;
+  // pivot mobile
+  const cx = CX + Math.sin(t*0.3) * (PANEL_W/5);
+  const cy = CY + Math.cos(t*0.4) * (PANEL_H/5);
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const d = Math.hypot(x-cx, y-cy);
+    const raw = Math.sin(d*n*0.3 - t*sp*3);
+    const v = Math.pow(Math.max(0, raw), sharp);
+    const [r,g,b] = pal(v);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Damier — grille rotative pulsante */
+function renderKaleido(t, p, pal){
+  const sp = p.speed, seg = Math.max(2, p.segments|0), sc = p.scale;
+  const ang0 = t*sp*0.3;
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    let dx = x-CX, dy = y-CY;
+    let a = Math.atan2(dy,dx) - ang0;
+    const seg_a = (Math.PI*2)/seg;
+    a = Math.abs(((a % seg_a) + seg_a) % seg_a - seg_a/2);
+    const r = Math.sqrt(dx*dx+dy*dy);
+    const v = (Math.sin(r*sc*0.25 - t*sp*1.5) * Math.cos(a*3) + 1) * 0.5;
+    const [rr,g,b] = pal(v);
+    setPx(x,y,rr,g,b);
+  }
+}
+
+/* Orbite — points lumineux qui tournent avec remanence */
+function renderOrbit(t, p, pal){
+  const sp = p.speed, n = Math.max(1, p.count|0), persist = p.persist;
+  if (!renderOrbit._buf) renderOrbit._buf = new Float32Array(PANEL_W*PANEL_H);
+  const buf = renderOrbit._buf;
+  for (let i=0; i<buf.length; i++) buf[i] *= persist;
+  for (let i=0; i<n; i++){
+    const a = t*sp*(0.4+i*0.15) + i*(Math.PI*2/n);
+    const rad = 8 + (i % 4) * 6;
+    const x = Math.round(CX + Math.cos(a)*rad);
+    const y = Math.round(CY + Math.sin(a)*rad*0.9);
+    if (x>=0 && x<PANEL_W && y>=0 && y<PANEL_H) buf[y*PANEL_W+x] = 1;
+  }
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const v = Math.min(1, buf[y*PANEL_W+x]);
+    const [r,g,b] = pal(v);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Damier — grille rotative pulsante */
+function renderCheckers(t, p, pal){
+  const sp = p.speed, cell = Math.max(2, p.scale|0), ang = t*sp*0.2;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const dx = x-CX, dy = y-CY;
+    const u = dx*ca - dy*sa, v2 = dx*sa + dy*ca;
+    const cxI = Math.floor(u/cell), cyI = Math.floor(v2/cell);
+    const on = (cxI+cyI) % 2 === 0;
+    const pulse = 0.5 + 0.5*Math.sin(t*sp*2 + cxI*0.5 + cyI*0.5);
+    const [r,g,b] = pal(on ? pulse : 0.06);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Spirale — bras tournants, resserrement reglable */
+function renderSpiral(t, p, pal){
+  const sp = p.speed, arms = p.arms, tight = p.tight;
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const dx = x-CX, dy = y-CY;
+    const ang = Math.atan2(dy,dx);
+    const d = Math.hypot(dx,dy);
+    const v = (Math.sin(ang*arms + d*tight*0.1 - t*sp*3) + 1) * 0.5;
+    const [r,g,b] = pal(v);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Etoile — rayons qui tournent depuis le centre */
+function renderStar(t, p, pal){
+  const sp = p.speed, rays = p.rays, sharp = p.sharp;
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const dx = x-CX, dy = y-CY;
+    const ang = Math.atan2(dy,dx) + t*sp*0.5;
+    const d = Math.hypot(dx,dy);
+    const raw = Math.pow(Math.abs(Math.sin(ang*rays*0.5)), sharp);
+    const fall = Math.max(0, 1 - d/(PANEL_W*0.62));
+    const v = raw * fall;
+    const [r,g,b] = pal(v);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Bandes — orthogonales ou diagonales qui défilent */
+function renderStripes(t, p, pal){
+  const sp = p.speed, th = p.thick, ang = p.angle * Math.PI / 180;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    const u = (x-CX)*ca + (y-CY)*sa;
+    const v = (Math.sin(u/th - t*sp*2) + 1) * 0.5;
+    // marche dure pour des bandes franches
+    const vv = v < 0.5 ? Math.pow(v*2, 2)*0.5 : 1 - Math.pow((1-v)*2, 2)*0.5;
+    const [r,g,b] = pal(vv);
+    setPx(x,y,r,g,b);
+  }
+}
+
+/* Glitch — base + déchirures horizontales + séparation RVB */
+function renderGlitch(t, p, pal){
+  const sp = p.speed, tear = p.tear, chro = p.chroma;
+  // base : moiré + bandes
+  for (let y=0; y<PANEL_H; y++){
+    // décalage horizontal aléatoire selon la rangée
+    const tearSeed = Math.sin(y*1.7 + Math.floor(t*sp*4)*7.3);
+    const xOff = (tearSeed > 1 - tear) ? Math.floor(tearSeed * 8) : 0;
+    for (let x=0; x<PANEL_W; x++){
+      const xr = x + xOff, xg = x, xb = x - Math.floor(xOff * chro);
+      const baseR = (Math.sin(xr*0.4 + y*0.3 + t*sp) + Math.sin(y*0.5 - t*sp*1.1))*0.5;
+      const baseG = (Math.sin(xg*0.4 + y*0.3 + t*sp) + Math.sin(y*0.5 - t*sp*1.1))*0.5;
+      const baseB = (Math.sin(xb*0.4 + y*0.3 + t*sp) + Math.sin(y*0.5 - t*sp*1.1))*0.5;
+      // chaque canal échantillonne la palette à une coordonnée légèrement différente
+      const [r1] = pal((baseR+1)*0.5);
+      const [,g1] = pal((baseG+1)*0.5);
+      const [,,b1] = pal((baseB+1)*0.5);
+      setPx(x, y, r1, g1, b1);
+    }
+  }
+}
+
+/* Flot — particules dérivantes guidées par un champ de bruit */
+const particles = [];
+function seedParticles(n){
+  particles.length = 0;
+  for (let i=0; i<n; i++)
+    particles.push({x: Math.random()*PANEL_W, y: Math.random()*PANEL_H,
+      age: Math.random()*5});
+}
+seedParticles(80);
+function renderFlow(t, p, pal){
+  const sp = p.speed, count = p.count|0, persist = p.persist;
+  if (particles.length !== count) seedParticles(count);
+  // fade du buffer existant pour traces
+  fade(1 - persist);
+  for (const pt of particles){
+    const ang = (Math.sin(pt.x*0.3 + t*0.2) + Math.cos(pt.y*0.3 - t*0.15)) * Math.PI;
+    pt.x += Math.cos(ang) * sp * 0.4;
+    pt.y += Math.sin(ang) * sp * 0.4;
+    pt.age += 0.05;
+    if (pt.x < 0 || pt.x >= PANEL_W || pt.y < 0 || pt.y >= PANEL_H || pt.age > 6){
+      pt.x = Math.random()*PANEL_W; pt.y = Math.random()*PANEL_H; pt.age = 0;
+    }
+    const v = 0.4 + 0.5*Math.sin(pt.age*1.2);
+    const [r,g,b] = pal(v);
+    const ix = pt.x|0, iy = pt.y|0;
+    if (ix>=0 && ix<PANEL_W && iy>=0 && iy<PANEL_H){
+      const i = (ix + iy*PANEL_W)*3;
+      pixels[i]   = Math.min(255, pixels[i]   + r);
+      pixels[i+1] = Math.min(255, pixels[i+1] + g);
+      pixels[i+2] = Math.min(255, pixels[i+2] + b);
+    }
+  }
+}
+
+/* Vie — Conway sur 16×16, couleur = âge */
+let lifeGrid = new Uint8Array(N), lifeAge = new Uint8Array(N), lifeAcc = 0;
+function lifeReset(){
+  for (let i=0; i<N; i++){
+    lifeGrid[i] = Math.random() < 0.32 ? 1 : 0;
+    lifeAge[i] = lifeGrid[i] ? 1 : 0;
+  }
+}
+lifeReset();
+function lifeStep(){
+  const next = new Uint8Array(N);
+  for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+    let n = 0;
+    for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+      if (!dx && !dy) continue;
+      const xx = (x+dx+PANEL_W) % PANEL_W;
+      const yy = (y+dy+PANEL_H) % PANEL_H;
+      n += lifeGrid[xx + yy*PANEL_W];
+    }
+    const i = x + y*PANEL_W;
+    if (lifeGrid[i]){
+      next[i] = (n===2 || n===3) ? 1 : 0;
+      lifeAge[i] = next[i] ? Math.min(255, lifeAge[i]+1) : 0;
+    } else {
+      next[i] = (n===3) ? 1 : 0;
+      if (next[i]) lifeAge[i] = 1;
+    }
+  }
+  // détection de stagnation : si presque rien ne bouge, on réensemence
+  let changes = 0;
+  for (let i=0; i<N; i++) if (next[i] !== lifeGrid[i]) changes++;
+  lifeGrid = next;
+  if (changes < N*0.005) lifeReset();    // ~20 cellules pour 64x64
+}
+function renderLife(t, p, pal){
+  const sp = p.speed;
+  lifeAcc += sp * 0.1;
+  while (lifeAcc >= 1){ lifeStep(); lifeAcc -= 1; }
+  for (let i=0; i<N; i++){
+    const v = lifeGrid[i] ? Math.min(1, lifeAge[i] / 20) : 0;
+    const [r,g,b] = pal(v);
+    const k = i*3;
+    pixels[k] = r; pixels[k+1] = g; pixels[k+2] = b;
+  }
+}
+
+/* === Esthétique minimaliste (raster-noton / Alva Noto) === */
+
+/* Sweep — ligne unique qui balaie l'écran avec rémanence */
+function renderSweep(t, p, pal){
+  fade(1 - p.persist);
+  const sp = p.speed;
+  const horizontal = p.axis < 0.5;
+  const len = horizontal ? PANEL_H : PANEL_W;
+  const pos = Math.floor((t * sp * len * 0.5) % len);
+  const [r,g,b] = pal(1);
+  if (horizontal){
+    for (let x=0; x<PANEL_W; x++) setPx(x, pos, r, g, b);
+  } else {
+    for (let y=0; y<PANEL_H; y++) setPx(pos, y, r, g, b);
+  }
+}
+
+/* Bars — barres horizontales pulsantes selon un motif binaire */
+function renderBars(t, p, pal){
+  const sp = p.speed, density = p.density, thick = p.thick|0;
+  for (let y=0; y<PANEL_H; y++){
+    const band = Math.floor(y / thick);
+    const phase = Math.sin(band * 1.7 + t * sp) + Math.sin(band * 0.9 - t * sp * 0.7);
+    const on = phase > (2 - density * 4) ? 1 : 0;
+    const [r,g,b] = pal(on);
+    for (let x=0; x<PANEL_W; x++) setPx(x, y, r, g, b);
+  }
+}
+
+/* Static — bruit numérique contrôlé, change à un taux donné */
+function renderStatic(t, p, pal){
+  const density = p.density, sp = p.speed, block = Math.max(1, p.block|0);
+  const seed = Math.floor(t * sp * 12);
+  for (let y=0; y<PANEL_H; y+=block) for (let x=0; x<PANEL_W; x+=block){
+    let h = (x * 73856093) ^ (y * 19349663) ^ (seed * 83492791);
+    h = (h ^ (h >>> 16)) * 2246822519;
+    h = (h ^ (h >>> 13)) * 3266489917;
+    h = (h ^ (h >>> 16)) >>> 0;
+    const v = h / 4294967296;
+    const on = v < density ? 1 : 0;
+    const [r,g,b] = pal(on);
+    for (let by=0; by<block; by++) for (let bx=0; bx<block; bx++){
+      const px = x+bx, py = y+by;
+      if (px < PANEL_W && py < PANEL_H) setPx(px, py, r, g, b);
+    }
+  }
+}
+
+/* Lines — colonnes verticales fines qui apparaissent et disparaissent */
+function renderLines(t, p, pal){
+  const sp = p.speed, density = p.density, thick = Math.max(1, p.thick|0);
+  for (let x=0; x<PANEL_W; x++){
+    const band = Math.floor(x / thick);
+    const phase = Math.sin(band * 0.45 + t * sp) + Math.sin(band * 0.21 - t * sp * 0.5);
+    const on = phase > (2 - density * 4) ? 1 : 0;
+    const [r,g,b] = pal(on);
+    for (let y=0; y<PANEL_H; y++) setPx(x, y, r, g, b);
+  }
+}
+
+/* Sine — courbe sinusoïdale fine tracée pixel par pixel */
+function renderSine(t, p, pal){
+  fade(1 - p.persist);
+  const sp = p.speed, freq = p.freq, amp = p.amp;
+  const [r,g,b] = pal(1);
+  for (let x=0; x<PANEL_W; x++){
+    const y = Math.round(CY + Math.sin(x * freq + t * sp) * amp);
+    if (y >= 0 && y < PANEL_H) setPx(x, y, r, g, b);
+    // double épaisseur subtile
+    if (y-1 >= 0){
+      const i = (x + (y-1)*PANEL_W)*3;
+      pixels[i]   = Math.min(255, pixels[i]   + r*0.3);
+      pixels[i+1] = Math.min(255, pixels[i+1] + g*0.3);
+      pixels[i+2] = Math.min(255, pixels[i+2] + b*0.3);
+    }
+  }
+}
+
+/* Texte défilant — saisie libre, scale 1..4, position Y, vitesse */
+function hexToRgb(h){
+  if (!h || typeof h !== 'string') return null;
+  h = h.replace('#','').trim();
+  if (h.length === 3) h = h.split('').map(c => c+c).join('');
+  if (h.length !== 6) return null;
+  const n = parseInt(h, 16);
+  if (isNaN(n)) return null;
+  return [(n>>16)&255, (n>>8)&255, n&255];
+}
+
+function renderText(t, p, pal){
+  // Fond : couleur choisie librement, sinon noir
+  const bgRGB = hexToRgb(p.bg);
+  if (bgRGB){
+    for (let i=0; i<N; i++){
+      pixels[i*3] = bgRGB[0]; pixels[i*3+1] = bgRGB[1]; pixels[i*3+2] = bgRGB[2];
+    }
+  } else {
+    clearBuf();
+  }
+  const text = normTxt(p.text || '');
+  if (!text) return;
+  const scale = Math.max(1, p.scale|0);
+  const fullW = measureText(text, scale);
+  const span = fullW + PANEL_W;
+  const offs = (t * p.speed) % span;
+  const startX = Math.floor(PANEL_W - offs);
+  // Centrage vertical automatique (paramètre y retiré)
+  const yPos = Math.floor((PANEL_H - 7*scale) / 2);
+  // Couleur du texte : palette par défaut, mais on garantit le contraste
+  // avec le fond choisi (sinon le texte deviendrait illisible).
+  let [r,g,b] = pal(1);
+  if (bgRGB){
+    const bgLum  = (0.299*bgRGB[0] + 0.587*bgRGB[1] + 0.114*bgRGB[2]) / 255;
+    const txtLum = (0.299*r + 0.587*g + 0.114*b) / 255;
+    if (Math.abs(bgLum - txtLum) < 0.35){
+      [r,g,b] = bgLum > 0.5 ? [12,12,16] : [240,240,245];
+    }
+  }
+  drawText(text, startX, yPos, scale, r, g, b);
+}
+
+/* === Mathématique / scientifique === */
+
+/* Lissajous — courbe paramétrique avec rémanence */
+function renderLissajous(t, p, pal){
+  fade(1 - p.persist);
+  const sp = p.speed, A = p.freqA, B = p.freqB, ph = p.phase;
+  const rx = PANEL_W/2 - 2, ry = PANEL_H/2 - 2;
+  // multiples points par frame pour densifier la trace
+  for (let k=0; k<10; k++){
+    const tt = t * sp + k * 0.004;
+    const x = Math.round(CX + Math.sin(tt * A) * rx);
+    const y = Math.round(CY + Math.sin(tt * B + ph) * ry);
+    if (x>=0 && x<PANEL_W && y>=0 && y<PANEL_H){
+      const [r,g,b] = pal(1);
+      setPx(x, y, r, g, b);
+    }
+  }
+}
+
+/* Courbe de Hilbert — fractale qui se construit progressivement */
+let hilbertPoints = null;
+function buildHilbert(order){
+  const n = 1 << order;
+  const pts = new Array(n*n);
+  for (let d=0; d<n*n; d++){
+    let x=0, y=0, td=d;
+    for (let s=1; s<n; s*=2){
+      const rx = 1 & (td>>1);
+      const ry = 1 & (td ^ rx);
+      if (ry === 0){
+        if (rx === 1){ x = s-1-x; y = s-1-y; }
+        const tmp = x; x = y; y = tmp;
+      }
+      x += s*rx; y += s*ry;
+      td = td >> 2;
+    }
+    pts[d] = {x, y};
+  }
+  return pts;
+}
+function renderHilbert(t, p, pal){
+  if (!hilbertPoints) hilbertPoints = buildHilbert(Math.round(Math.log2(PANEL_W))); // s'adapte à la résolution
+  fade(1 - p.persist);
+  const sp = p.speed;
+  const len = hilbertPoints.length;
+  const cycle = len * 2;
+  const prog = (t * sp * len * 0.5) % cycle;
+  let cursor = Math.floor(prog > len ? cycle - prog : prog);
+  if (cursor >= len) cursor = len - 1;   // borne : jamais hors du tableau
+  if (cursor < 0) cursor = 0;
+  const tail = Math.max(20, p.tail|0);
+  for (let k=0; k<tail; k++){
+    const idx = cursor - k; if (idx < 0) break;
+    const pt = hilbertPoints[idx];
+    if (!pt) continue;                    // sécurité
+    const intensity = 1 - k / tail;
+    const [r,g,b] = pal(intensity);
+    setPx(pt.x, pt.y, r, g, b);
+  }
+}
+
+/* Réaction-diffusion (Gray-Scott) — patterns émergents de Turing */
+let gsU = null, gsV = null, gsU2 = null, gsV2 = null;
+function gsReset(){
+  gsU = new Float32Array(N); gsV = new Float32Array(N);
+  gsU2 = new Float32Array(N); gsV2 = new Float32Array(N);
+  gsU.fill(1);
+  // graines centrales (3 zones), proportionnelles à la résolution
+  const W = PANEL_W, seeds = [[W*0.5,W*0.5],[W*0.31,W*0.69],[W*0.69,W*0.31]];
+  const rad = Math.max(4, (W/16)|0);
+  for (const [sx,sy] of seeds){
+    for (let dy=-rad; dy<=rad; dy++) for (let dx=-rad; dx<=rad; dx++){
+      const x = (sx+dx)|0, y = (sy+dy)|0;
+      if (x>=0 && x<PANEL_W && y>=0 && y<PANEL_H){
+        gsU[x + y*PANEL_W] = 0.5;
+        gsV[x + y*PANEL_W] = 0.25;
+      }
+    }
+  }
+}
+
+/* ─ AUJOURD'HUI : l'œuvre du jour, tirée de la date, identique au moteur Pi ─ */
+const TODAY_PALETTES = ["airdraw","prisme","neonuit","vitrail","couchant","ecliptique",
+  "iris","ocean","forest","maree","recif","laser","lagon","solaire",
+  "magnetique","carnaval","givre","jade","pop","arcade"];
+
+function mulberry32(a){
+  a = a >>> 0;
+  return function(){
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), 1 | t) >>> 0;
+    t = ((t + Math.imul(t ^ (t >>> 7), 61 | t)) >>> 0) ^ t;
+    t = t >>> 0;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+let _todaySeed = null, _today = null;
+function todayBuild(seed){
+  const r = mulberry32(seed);
+  const nl = 3 + Math.floor(r()*3);
+  const layers = []; let wsum = 0;
+  for (let i=0;i<nl;i++){
+    const fx = 0.05 + r()*0.34, fy = 0.05 + r()*0.34, ph = r()*6.2832;
+    const sp = (0.15 + r()*0.7) * (r()<0.5 ? 1 : -1);
+    const w = 0.5 + r()*0.5; wsum += w;
+    layers.push([fx,fy,ph,sp,w]);
+  }
+  const sym = Math.floor(r()*3);
+  const rot = r()*6.2832;
+  const warp = r()*0.6;
+  const palkey = TODAY_PALETTES[Math.floor(r()*TODAY_PALETTES.length)];
+  return {layers, wsum, sym, rot, warp, palkey};
+}
+
+function renderAujourdhui(t, p, pal){
+  const now = new Date();
+  const seed = now.getFullYear()*10000 + (now.getMonth()+1)*100 + now.getDate();
+  if (seed !== _todaySeed || !_today){ _todaySeed = seed; _today = todayBuild(seed); }
+  const g = _today;
+  const lut = (PAL[g.palkey] && PAL[g.palkey].fn) ? PAL[g.palkey].fn : PAL['airdraw'].fn;
+  const ca = Math.cos(g.rot), sa = Math.sin(g.rot);
+  // le moteur du Pi compose en 64x64 ; l'aperçu fait 128 : on échantillonne
+  // la même grille virtuelle de 64 pour obtenir exactement la même œuvre
+  const VS = 64, cx = (VS-1)/2, cy = (VS-1)/2;
+  const sx = VS/PANEL_W, sy = VS/PANEL_H;
+  for (let y=0; y<PANEL_H; y++){
+    for (let x=0; x<PANEL_W; x++){
+      const dx = x*sx - cx, dy = y*sy - cy;
+      let xr = dx*ca - dy*sa, yr = dx*sa + dy*ca;
+      if (g.warp > 0.02){
+        xr = xr + g.warp*6.0*Math.sin(yr*0.08 + t*0.3);
+        yr = yr + g.warp*6.0*Math.sin(xr*0.08 - t*0.25);
+      }
+      if (g.sym >= 1) xr = Math.abs(xr);
+      if (g.sym === 2) yr = Math.abs(yr);
+      let acc = 0;
+      for (const L of g.layers) acc += Math.sin(xr*L[0] + yr*L[1] + L[2] + t*L[3])*L[4];
+      let v = acc/g.wsum*0.5 + 0.5;
+      v = v<0?0:(v>1?1:v);
+      const col = lut(v);
+      const i=(y*PANEL_W+x)*3;
+      pixels[i]=col[0]; pixels[i+1]=col[1]; pixels[i+2]=col[2];
+    }
+  }
+}
+
+function renderRD(t, p, pal){
+  if (!gsU) gsReset();
+  const dU = 0.16, dV = 0.08;
+  const f = p.feed, k = p.kill;
+  const iters = Math.max(1, p.iters|0);
+  for (let it=0; it<iters; it++){
+    for (let y=0; y<PANEL_H; y++) for (let x=0; x<PANEL_W; x++){
+      const i = x + y*PANEL_W;
+      const xl = (x-1+PANEL_W) % PANEL_W;
+      const xr = (x+1) % PANEL_W;
+      const yu = (y-1+PANEL_H) % PANEL_H;
+      const yd = (y+1) % PANEL_H;
+      const lapU = gsU[xl+y*PANEL_W] + gsU[xr+y*PANEL_W]
+                 + gsU[x+yu*PANEL_W] + gsU[x+yd*PANEL_W] - 4*gsU[i];
+      const lapV = gsV[xl+y*PANEL_W] + gsV[xr+y*PANEL_W]
+                 + gsV[x+yu*PANEL_W] + gsV[x+yd*PANEL_W] - 4*gsV[i];
+      const u = gsU[i], v = gsV[i];
+      const uvv = u*v*v;
+      gsU2[i] = u + dU*lapU - uvv + f*(1-u);
+      gsV2[i] = v + dV*lapV + uvv - (k+f)*v;
+    }
+    const tu = gsU; gsU = gsU2; gsU2 = tu;
+    const tv = gsV; gsV = gsV2; gsV2 = tv;
+  }
+  // affichage : normalisation dynamique pour un bon contraste dès le début
+  let vmax = 0;
+  for (let i=0; i<N; i++) if (gsV[i] > vmax) vmax = gsV[i];
+  const norm = vmax > 0.05 ? 1/vmax : 20;
+  for (let i=0; i<N; i++){
+    const val = Math.max(0, Math.min(1, gsV[i] * norm));
+    const [r,g,b] = pal(val);
+    pixels[i*3] = r; pixels[i*3+1] = g; pixels[i*3+2] = b;
+  }
+  // si le motif s'est éteint (réaction morte), on relance des graines
+  if (vmax < 0.02) gsReset();
+}
+
+/* EKG / Sismographe — blip rythmique défilant */
+const ekgBuf = new Float32Array(PANEL_W);
+let ekgLastTick = -1;
+function renderEKG(t, p, pal){
+  fade(1 - p.persist);
+  const bpm = p.bpm, sp = 20;  // 20 colonnes par seconde
+  const tick = Math.floor(t * sp);
+  if (tick !== ekgLastTick){
+    const steps = Math.min(PANEL_W, tick - ekgLastTick);
+    for (let s=0; s<steps; s++){
+      // décale d'un pixel à gauche
+      for (let i=0; i<PANEL_W-1; i++) ekgBuf[i] = ekgBuf[i+1];
+      // calcule la nouvelle valeur de droite
+      const tt = (ekgLastTick + s + 1) / sp;
+      const beatInt = 60 / bpm;
+      const phase = (tt % beatInt) / beatInt;
+      let v = 0;
+      if (phase < 0.04) v = phase * 25;
+      else if (phase < 0.08) v = 1 - (phase-0.04)*30;
+      else if (phase < 0.11) v = -0.4 + (phase-0.08)*15;
+      ekgBuf[PANEL_W-1] = v;
+    }
+    ekgLastTick = tick;
+  }
+  const [r,g,b] = pal(1);
+  const amp = p.amp;
+  for (let x=0; x<PANEL_W; x++){
+    const y = Math.round(CY - ekgBuf[x] * (PANEL_H/2.5) * amp);
+    if (y>=0 && y<PANEL_H) setPx(x, y, r, g, b);
+  }
+}
+
+/* === Mire & temps === */
+
+/* Mire SMPTE animée — bandes verticales défilant chacune à sa vitesse */
+function renderMire(t, p, pal){
+  const sp = p.speed, bands = Math.max(2, p.bands|0), jit = p.jitter;
+  const bw = Math.max(1, Math.floor(PANEL_W / bands));
+  for (let x=0; x<PANEL_W; x++){
+    const band = Math.floor(x / bw);
+    const phase = band * 13 * (1 + jit * Math.sin(band * 2.1 + t * 0.5));
+    const sv = 1 + (band % 4) * 0.4;
+    for (let y=0; y<PANEL_H; y++){
+      const v = (((y + t*sp*sv*8 + phase) % PANEL_H) + PANEL_H) % PANEL_H / PANEL_H;
+      const [r,g,b] = pal(v);
+      setPx(x, y, r, g, b);
+    }
+  }
+}
+
+/* Timecode SMPTE — HH:MM:SS:FF en bas du panneau */
+let tcFrame = 0, tcLastSec = -1;
+function renderTimecode(t, p, pal){
+  clearBuf();
+  const now = new Date();
+  const sec = now.getSeconds();
+  if (sec !== tcLastSec){ tcLastSec = sec; tcFrame = 0; }
+  else tcFrame = (tcFrame + 1) % 25;
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const ss = String(sec).padStart(2,'0');
+  const ff = String(tcFrame).padStart(2,'0');
+  const txt = `${hh}:${mm}:${ss}:${ff}`;  // 11 chars
+  const scale = 1;
+  const w = measureText(txt, scale);
+  const x = Math.floor((PANEL_W - w) / 2);
+  const y = Math.floor((PANEL_H - 7*scale) / 2);
+  const [r,g,b] = pal(1);
+  drawText(txt, x, y, scale, r, g, b);
+  // barre de progression sur la dernière ligne
+  if (p.bar > 0.5){
+    const ms = now.getMilliseconds();
+    const barW = Math.floor((ms / 1000) * PANEL_W);
+    const [r2,g2,b2] = pal(0.5);
+    for (let i=0; i<barW; i++) setPx(i, PANEL_H-1, r2, g2, b2);
+  }
+}
+
+/* Horloge — HH au-dessus de MM en gros, avec séparateur clignotant */
+function renderClock(t, p, pal){
+  clearBuf();
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const scale = 2;
+  const [r,g,b] = pal(1);
+
+  // largeurs : chaque chiffre = 3px de glyphe, +1px d'espace ; le ':' occupe 1 colonne
+  const glyphW = 3*scale;        // largeur d'un chiffre
+  const gap = 1*scale;           // espace entre chiffres
+  const groupW = glyphW*2 + gap; // "HH" ou "MM"
+  const colonW = 1*scale;        // largeur du deux-points
+  const sideGap = 2*scale;       // MÊME distance de part et d'autre du ':'
+  const totalW = groupW + sideGap + colonW + sideGap + groupW;
+  const x0 = Math.floor((PANEL_W - totalW) / 2);
+  const yPos = Math.floor((PANEL_H - 5*scale) / 2);
+
+  // heures
+  drawText(hh, x0, yPos, scale, r, g, b);
+  // deux-points, centré verticalement, à égale distance des deux groupes
+  const colonX = x0 + groupW + sideGap;
+  const blink = now.getSeconds() % 2 === 0;         // clignote chaque seconde
+  if (blink){
+    const cy1 = yPos + Math.round(1.2*scale);
+    const cy2 = yPos + Math.round(3.2*scale);
+    for (let dx=0; dx<scale; dx++) for (let dy=0; dy<scale; dy++){
+      setPx(colonX+dx, cy1+dy, r, g, b);
+      setPx(colonX+dx, cy2+dy, r, g, b);
+    }
+  }
+  // minutes
+  const mmX = colonX + colonW + sideGap;
+  drawText(mm, mmX, yPos, scale, r, g, b);
+
+  // barre de secondes en bas (optionnelle)
+  if (p.seconds > 0.5){
+    const sec = now.getSeconds() + now.getMilliseconds()/1000;
+    const barW = Math.floor((sec / 60) * PANEL_W);
+    const [r3,g3,b3] = pal(0.35);
+    for (let i=0; i<barW; i++) setPx(i, PANEL_H-1, r3, g3, b3);
+  }
+}
+
+/* === Helpers de dessin géométrique === */
+
+/* Trace une ligne en pixels via Bresenham */
+function drawLine(x0, y0, x1, y1, r, g, b){
+  x0 = Math.round(x0); y0 = Math.round(y0);
+  x1 = Math.round(x1); y1 = Math.round(y1);
+  const dx = Math.abs(x1-x0), sx = x0 < x1 ? 1 : -1;
+  const dy = -Math.abs(y1-y0), sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  while (true){
+    if (x0 >= 0 && x0 < PANEL_W && y0 >= 0 && y0 < PANEL_H) setPx(x0, y0, r, g, b);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy){ err += dy; x0 += sx; }
+    if (e2 <= dx){ err += dx; y0 += sy; }
+  }
+}
+
+/* Cadran analogique — aiguilles tournantes avec graduations optionnelles */
+function renderClock2(t, p, pal){
+  clearBuf();
+  const now = new Date();
+  const h = now.getHours() % 12;
+  const m = now.getMinutes();
+  const s = now.getSeconds() + now.getMilliseconds()/1000;
+  const cx = CX, cy = CY;
+  const [r,g,b] = pal(1);
+  const [r2,g2,b2] = pal(0.4);
+
+  // graduations (12 tirets autour du cadran)
+  if (p.ticks > 0.5){
+    for (let i=0; i<12; i++){
+      const ang = i * Math.PI / 6 - Math.PI/2;
+      const outer = 30;
+      const inner = (i % 3 === 0) ? 25 : 27;
+      drawLine(
+        cx + Math.cos(ang) * outer, cy + Math.sin(ang) * outer,
+        cx + Math.cos(ang) * inner, cy + Math.sin(ang) * inner,
+        r2, g2, b2);
+    }
+  }
+  // aiguille heure
+  const hAng = ((h + m/60) * Math.PI / 6) - Math.PI/2;
+  drawLine(cx, cy, cx + Math.cos(hAng) * 14, cy + Math.sin(hAng) * 14, r, g, b);
+  // aiguille minute
+  const mAng = (m * Math.PI / 30) - Math.PI/2;
+  drawLine(cx, cy, cx + Math.cos(mAng) * 22, cy + Math.sin(mAng) * 22, r, g, b);
+  // aiguille seconde (optionnelle)
+  if (p.seconds > 0.5){
+    const sAng = (s * Math.PI / 30) - Math.PI/2;
+    const [rs,gs,bs] = pal(0.7);
+    drawLine(cx, cy, cx + Math.cos(sAng) * 26, cy + Math.sin(sAng) * 26, rs, gs, bs);
+  }
+  // moyeu central (4 pixels)
+  setPx(31, 31, r, g, b); setPx(32, 31, r, g, b);
+  setPx(31, 32, r, g, b); setPx(32, 32, r, g, b);
+}
+
+
+
+/* ============ PALETTES (LUT depuis palettes.json) ============ */
+const PAL_DATA = {
+  mono: {name:'Mono', lut:[[0, 0, 0], [8, 8, 8], [16, 16, 16], [24, 24, 24], [32, 32, 32], [40, 40, 40], [48, 48, 48], [56, 56, 56], [64, 64, 64], [72, 72, 72], [80, 80, 80], [88, 88, 88], [96, 96, 96], [104, 104, 104], [112, 112, 112], [120, 120, 120], [128, 128, 128], [135, 135, 135], [143, 143, 143], [151, 151, 151], [159, 159, 159], [167, 167, 167], [175, 175, 175], [183, 183, 183], [191, 191, 191], [199, 199, 199], [207, 207, 207], [215, 215, 215], [223, 223, 223], [231, 231, 231], [239, 239, 239], [247, 247, 247], [255, 255, 255]], grad:'#000,#fff'},
+  airdraw: {name:'Air', lut:[[10, 10, 12], [21, 30, 37], [33, 51, 62], [45, 71, 88], [57, 92, 113], [69, 113, 139], [81, 133, 164], [93, 154, 189], [105, 174, 215], [117, 195, 240], [131, 205, 245], [147, 201, 223], [164, 197, 200], [180, 194, 178], [196, 190, 156], [213, 186, 134], [229, 182, 112], [244, 179, 92], [254, 174, 83], [253, 168, 100], [252, 161, 117], [251, 154, 135], [250, 148, 152], [249, 141, 169], [248, 134, 186], [247, 128, 203], [246, 130, 215], [245, 149, 219], [244, 167, 223], [243, 185, 227], [242, 203, 231], [241, 221, 235], [240, 240, 240]], grad:'#000,#7ccfff,#ffb14e,#f77cd6,#fff'},
+  msf: {name:'MSF', lut:[[0, 0, 0], [7, 0, 0], [14, 0, 0], [22, 0, 0], [29, 0, 0], [37, 0, 0], [44, 0, 0], [52, 0, 0], [59, 0, 0], [67, 0, 0], [74, 0, 0], [82, 0, 0], [89, 0, 0], [97, 0, 0], [104, 0, 0], [112, 0, 0], [119, 0, 0], [126, 0, 0], [133, 0, 0], [140, 0, 0], [148, 0, 0], [155, 0, 0], [163, 0, 0], [170, 0, 0], [178, 0, 0], [185, 0, 0], [193, 0, 0], [200, 0, 0], [208, 0, 0], [215, 0, 0], [223, 0, 0], [230, 0, 0], [238, 0, 0]], grad:'#000,#EE0000'},
+  heat: {name:'Heat', lut:[[0, 0, 0], [17, 0, 0], [35, 0, 0], [53, 0, 0], [71, 0, 0], [88, 0, 0], [106, 0, 0], [124, 0, 0], [142, 0, 0], [160, 0, 0], [173, 6, 0], [182, 21, 0], [191, 35, 0], [200, 50, 0], [209, 64, 0], [218, 79, 0], [227, 94, 0], [235, 107, 0], [243, 121, 0], [252, 136, 0], [255, 148, 0], [255, 159, 0], [255, 171, 0], [255, 182, 0], [255, 193, 0], [255, 204, 0], [255, 216, 0], [255, 227, 0], [255, 234, 38], [255, 239, 87], [255, 244, 136], [255, 249, 185], [255, 255, 235]], grad:'#000,#a00,#f80,#ff0,#fff'},
+  cool: {name:'Cool', lut:[[0, 0, 0], [0, 10, 11], [0, 20, 23], [0, 31, 34], [0, 41, 46], [0, 52, 57], [0, 62, 69], [0, 73, 80], [0, 83, 92], [0, 94, 103], [0, 101, 116], [0, 106, 131], [0, 110, 146], [0, 114, 162], [0, 118, 177], [0, 122, 192], [0, 126, 207], [0, 130, 220], [0, 134, 236], [0, 138, 251], [16, 134, 255], [37, 126, 255], [58, 119, 255], [80, 111, 255], [101, 104, 255], [122, 96, 255], [144, 89, 255], [165, 81, 255], [183, 108, 255], [201, 145, 255], [219, 181, 255], [237, 218, 255], [255, 255, 255]], grad:'#000,#066,#08f,#a4f,#fff'},
+  acid: {name:'Acid', lut:[[0, 0, 0], [0, 23, 9], [0, 46, 18], [0, 69, 28], [0, 92, 37], [0, 115, 47], [0, 138, 56], [0, 161, 65], [0, 184, 75], [0, 207, 84], [10, 221, 96], [36, 225, 112], [61, 228, 128], [86, 232, 143], [111, 236, 159], [136, 239, 175], [161, 243, 190], [183, 246, 204], [208, 250, 220], [233, 254, 236], [241, 234, 236], [243, 207, 231], [245, 180, 226], [247, 153, 221], [248, 126, 216], [250, 99, 211], [252, 72, 206], [254, 45, 201], [223, 33, 180], [182, 25, 155], [141, 16, 130], [100, 8, 105], [60, 0, 80]], grad:'#000,#0f6,#fff,#f0c'},
+  rgb: {name:'Glitch', lut:[[0, 220, 0], [49, 191, 0], [97, 155, 0], [142, 112, 0], [180, 65, 0], [212, 15, 0], [236, 0, 0], [250, 0, 0], [254, 0, 0], [249, 0, 0], [234, 0, 0], [210, 0, 18], [178, 0, 68], [139, 0, 115], [95, 0, 157], [46, 0, 193], [0, 0, 222], [0, 0, 240], [0, 0, 252], [0, 0, 254], [0, 0, 246], [0, 0, 229], [0, 31, 203], [0, 80, 169], [0, 126, 128], [0, 167, 83], [0, 201, 34], [0, 228, 0], [0, 246, 0], [0, 254, 0], [0, 252, 0], [0, 241, 0], [0, 220, 0]], grad:'#f00,#0f0,#00f,#f00'},
+  ink: {name:'Ink', lut:[[10, 10, 20], [11, 13, 25], [12, 16, 31], [13, 19, 36], [14, 22, 42], [15, 25, 48], [16, 28, 53], [17, 31, 59], [18, 34, 65], [19, 37, 70], [20, 40, 76], [21, 43, 82], [22, 46, 87], [23, 49, 93], [24, 52, 99], [25, 55, 104], [26, 58, 110], [38, 68, 118], [52, 80, 127], [65, 91, 135], [78, 102, 144], [92, 114, 153], [105, 125, 162], [119, 137, 170], [132, 148, 179], [146, 160, 188], [159, 171, 197], [172, 182, 206], [186, 194, 214], [199, 205, 223], [213, 217, 232], [226, 228, 241], [240, 240, 250]], grad:'#0a0a14,#1a3a6e,#fff'},
+  bw: {name:'B&W', lut:[[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255], [255, 255, 255]], grad:'#000 50%,#fff 50%'},
+  phosphor: {name:'Phosphor', lut:[[0, 0, 0], [0, 11, 5], [0, 22, 10], [0, 33, 15], [0, 45, 20], [0, 56, 25], [0, 67, 30], [0, 79, 35], [0, 90, 40], [0, 101, 45], [0, 112, 50], [0, 124, 55], [0, 135, 60], [0, 146, 65], [0, 158, 70], [0, 169, 75], [0, 180, 80], [9, 184, 87], [19, 189, 94], [29, 193, 102], [39, 198, 109], [49, 203, 117], [59, 207, 124], [69, 212, 132], [79, 217, 139], [89, 222, 147], [99, 226, 154], [109, 231, 162], [119, 236, 169], [129, 240, 177], [139, 245, 184], [149, 250, 192], [160, 255, 200]], grad:'#000,#0c4,#9fc'},
+  sunset: {name:'Sunset', lut:[[8, 4, 16], [20, 6, 25], [32, 8, 34], [45, 11, 44], [57, 13, 53], [69, 16, 63], [82, 18, 72], [94, 20, 81], [106, 23, 91], [119, 25, 100], [131, 29, 102], [142, 35, 95], [154, 41, 88], [165, 47, 81], [177, 52, 74], [188, 58, 67], [200, 64, 60], [210, 69, 54], [222, 75, 47], [233, 81, 40], [245, 87, 33], [255, 93, 28], [255, 104, 31], [255, 115, 34], [255, 125, 37], [255, 136, 40], [255, 147, 43], [255, 157, 46], [255, 168, 49], [255, 179, 52], [255, 189, 55], [255, 200, 58], [255, 211, 61]], grad:'#000,#7e1b6a,#ff5c1c,#ffd33d'},
+  ocean: {name:'Ocean', lut:[[0, 8, 20], [0, 11, 26], [0, 15, 32], [0, 18, 39], [0, 22, 45], [0, 25, 52], [0, 29, 58], [0, 32, 65], [0, 36, 71], [0, 39, 77], [0, 43, 84], [0, 46, 90], [0, 50, 97], [0, 55, 104], [0, 63, 112], [0, 72, 121], [0, 81, 130], [0, 88, 137], [0, 97, 146], [0, 106, 155], [0, 114, 163], [0, 123, 172], [0, 132, 181], [0, 141, 190], [0, 149, 198], [24, 160, 204], [49, 172, 211], [75, 183, 217], [100, 194, 223], [125, 206, 229], [151, 217, 235], [176, 228, 241], [202, 240, 248]], grad:'#000814,#003566,#0096c7,#caf0f8'},
+  vhs: {name:'VHS', lut:[[5, 0, 12], [22, 0, 23], [39, 0, 34], [57, 0, 45], [74, 0, 56], [92, 0, 67], [109, 0, 78], [127, 0, 89], [144, 0, 100], [161, 0, 111], [179, 0, 122], [196, 0, 133], [214, 0, 144], [231, 0, 155], [249, 0, 166], [245, 9, 173], [230, 23, 178], [218, 35, 182], [203, 49, 187], [189, 63, 191], [174, 77, 196], [160, 91, 201], [145, 105, 206], [130, 119, 211], [116, 133, 216], [101, 147, 221], [87, 161, 225], [72, 175, 230], [58, 189, 235], [43, 203, 240], [29, 217, 245], [14, 231, 250], [0, 245, 255]], grad:'#000,#ff00aa,#00f5ff'},
+  lava: {name:'Lava', lut:[[0, 0, 0], [15, 0, 0], [30, 0, 0], [45, 0, 0], [60, 0, 0], [75, 0, 0], [90, 0, 0], [105, 0, 0], [120, 0, 0], [134, 6, 0], [148, 12, 0], [162, 19, 0], [176, 25, 0], [191, 31, 0], [205, 37, 0], [219, 44, 0], [233, 50, 0], [245, 55, 0], [255, 64, 1], [255, 76, 4], [255, 89, 7], [255, 101, 10], [255, 114, 13], [255, 127, 16], [255, 139, 19], [255, 152, 23], [255, 164, 26], [255, 177, 29], [255, 192, 47], [255, 207, 70], [255, 223, 93], [255, 239, 116], [255, 255, 140]], grad:'#000,#700,#f30,#ff0'},
+  toxic: {name:'Toxic', lut:[[0, 8, 0], [16, 33, 0], [33, 59, 0], [50, 85, 0], [66, 111, 0], [83, 137, 0], [100, 162, 0], [117, 188, 0], [133, 214, 0], [150, 240, 0], [152, 242, 0], [134, 214, 0], [117, 186, 0], [99, 157, 0], [82, 129, 0], [64, 101, 0], [46, 73, 0], [31, 48, 0], [28, 28, 7], [53, 25, 29], [77, 22, 51], [102, 19, 74], [126, 16, 96], [151, 13, 118], [175, 10, 140], [200, 6, 162], [225, 3, 184], [249, 0, 207], [226, 0, 188], [189, 0, 159], [153, 0, 129], [116, 0, 99], [80, 0, 70]], grad:'#000,#a0ff00,#000,#ff00d4'},
+  forest: {name:'Forest', lut:[[0, 0, 0], [1, 4, 1], [2, 8, 2], [3, 12, 3], [4, 16, 4], [5, 20, 5], [6, 25, 6], [7, 29, 7], [8, 33, 8], [9, 37, 9], [10, 43, 11], [11, 50, 13], [12, 57, 16], [13, 64, 19], [13, 71, 21], [14, 78, 24], [15, 86, 27], [16, 92, 29], [17, 99, 32], [18, 106, 35], [19, 113, 37], [21, 121, 40], [33, 130, 42], [45, 139, 43], [56, 148, 45], [68, 157, 47], [80, 166, 49], [91, 175, 51], [103, 184, 52], [115, 193, 54], [126, 202, 56], [138, 211, 58], [150, 220, 60]], grad:'#000,#0a280a,#147828,#96dc3c'},
+  rose: {name:'Rose', lut:[[0, 0, 0], [8, 1, 4], [16, 2, 8], [25, 3, 12], [33, 4, 16], [41, 5, 20], [50, 6, 25], [58, 7, 29], [66, 8, 33], [75, 9, 37], [85, 13, 44], [99, 20, 54], [112, 27, 64], [126, 34, 73], [139, 41, 83], [153, 48, 93], [166, 56, 103], [178, 62, 112], [191, 69, 121], [205, 76, 131], [218, 83, 141], [230, 91, 151], [232, 102, 158], [234, 113, 165], [237, 123, 172], [239, 134, 179], [241, 145, 186], [243, 156, 194], [246, 166, 201], [248, 177, 208], [250, 188, 215], [252, 199, 222], [255, 210, 230]], grad:'#000,#500a28,#e65a96,#ffd2e6'},
+  gold: {name:'Gold', lut:[[0, 0, 0], [6, 3, 0], [12, 7, 1], [18, 10, 1], [25, 14, 2], [31, 18, 2], [37, 21, 3], [43, 25, 3], [50, 29, 4], [56, 32, 4], [65, 39, 6], [79, 49, 9], [92, 60, 12], [106, 70, 15], [119, 80, 18], [133, 91, 22], [146, 101, 25], [158, 110, 27], [171, 120, 31], [185, 130, 34], [198, 141, 37], [210, 151, 41], [214, 158, 54], [218, 166, 67], [222, 174, 79], [226, 181, 92], [230, 189, 104], [234, 196, 117], [238, 204, 129], [242, 212, 142], [246, 219, 154], [250, 227, 167], [255, 235, 180]], grad:'#000,#3c2305,#d29628,#ffebb4'},
+  arctic: {name:'Arctic', lut:[[0, 0, 0], [0, 2, 4], [1, 4, 8], [1, 6, 12], [2, 8, 16], [2, 10, 20], [3, 12, 25], [3, 14, 29], [4, 16, 33], [4, 18, 37], [10, 27, 47], [22, 43, 64], [34, 59, 81], [46, 75, 98], [58, 91, 115], [70, 107, 132], [82, 123, 149], [93, 137, 164], [105, 154, 181], [117, 170, 198], [129, 186, 215], [141, 200, 230], [151, 205, 232], [162, 210, 234], [172, 215, 237], [182, 220, 239], [193, 225, 241], [203, 230, 243], [213, 235, 246], [224, 240, 248], [234, 245, 250], [244, 250, 252], [255, 255, 255]], grad:'#000,#051428,#8cc8e6,#fff'},
+  ember: {name:'Ember', lut:[[0, 0, 0], [4, 0, 0], [8, 1, 1], [12, 1, 1], [16, 2, 2], [20, 2, 2], [25, 3, 3], [29, 3, 3], [33, 4, 4], [37, 4, 4], [46, 7, 5], [60, 12, 6], [74, 17, 8], [89, 21, 9], [103, 26, 10], [117, 31, 12], [132, 36, 13], [144, 41, 14], [159, 45, 16], [173, 50, 17], [187, 55, 18], [200, 61, 20], [205, 70, 24], [210, 79, 27], [215, 88, 31], [220, 97, 34], [225, 106, 38], [230, 115, 42], [235, 124, 45], [240, 133, 49], [245, 142, 52], [250, 151, 56], [255, 160, 60]], grad:'#000,#280505,#c83c14,#ffa03c'},
+  grape: {name:'Grape', lut:[[0, 0, 0], [3, 0, 5], [7, 1, 10], [10, 1, 15], [14, 2, 20], [18, 2, 26], [21, 3, 31], [25, 3, 36], [29, 4, 41], [32, 4, 47], [39, 6, 55], [48, 10, 69], [57, 14, 82], [67, 18, 96], [76, 22, 109], [86, 26, 123], [95, 30, 136], [103, 34, 148], [113, 38, 161], [122, 42, 175], [132, 46, 188], [141, 51, 200], [148, 63, 205], [155, 75, 210], [162, 86, 215], [169, 98, 220], [176, 110, 225], [184, 121, 230], [191, 133, 235], [198, 145, 240], [205, 156, 245], [212, 168, 250], [220, 180, 255]], grad:'#000,#230532,#8c32c8,#dcb4ff'},
+  coral: {name:'Coral', lut:[[0, 0, 0], [6, 1, 1], [12, 3, 3], [18, 4, 4], [25, 6, 6], [31, 7, 7], [37, 9, 9], [43, 10, 10], [50, 12, 12], [56, 14, 14], [67, 19, 18], [85, 28, 25], [102, 37, 33], [120, 47, 41], [137, 56, 48], [155, 66, 56], [172, 75, 64], [187, 83, 70], [205, 93, 78], [222, 102, 85], [240, 112, 93], [255, 121, 101], [255, 129, 108], [255, 137, 115], [255, 145, 122], [255, 153, 129], [255, 161, 136], [255, 169, 144], [255, 177, 151], [255, 185, 158], [255, 193, 165], [255, 201, 172], [255, 210, 180]], grad:'#000,#3c0f0f,#ff7864,#ffd2b4'},
+  steel: {name:'Steel', lut:[[0, 0, 0], [1, 2, 2], [3, 4, 5], [4, 6, 7], [6, 8, 10], [7, 10, 13], [9, 12, 15], [10, 14, 18], [12, 16, 20], [14, 18, 23], [17, 23, 29], [24, 31, 38], [31, 39, 47], [38, 47, 57], [44, 55, 66], [51, 63, 76], [58, 71, 85], [64, 78, 93], [70, 87, 103], [77, 95, 112], [84, 103, 122], [91, 111, 131], [102, 121, 140], [113, 131, 149], [123, 141, 158], [134, 150, 167], [145, 160, 176], [156, 170, 185], [166, 180, 194], [177, 190, 203], [188, 200, 212], [199, 210, 221], [210, 220, 230]], grad:'#000,#0f1419,#5a6e82,#d2dce6'},
+  copper: {name:'Copper', lut:[[0, 0, 0], [6, 2, 0], [12, 4, 1], [18, 6, 2], [24, 9, 3], [30, 11, 4], [36, 13, 5], [42, 16, 5], [48, 18, 6], [54, 20, 7], [62, 25, 8], [73, 32, 10], [84, 39, 12], [95, 46, 14], [106, 53, 16], [117, 60, 18], [128, 67, 20], [138, 73, 21], [149, 80, 23], [160, 87, 25], [171, 95, 27], [181, 102, 30], [187, 111, 41], [192, 120, 52], [197, 129, 63], [202, 137, 74], [208, 146, 84], [213, 155, 95], [218, 164, 106], [224, 173, 117], [229, 182, 128], [234, 191, 139], [240, 200, 150]], grad:'#000,#3a1608,#b5651d,#f0c896'},
+  mint: {name:'Mint', lut:[[0, 0, 0], [0, 3, 2], [0, 7, 5], [1, 11, 8], [1, 15, 11], [2, 18, 14], [2, 22, 17], [2, 26, 20], [3, 30, 23], [3, 33, 26], [5, 43, 33], [9, 59, 45], [13, 75, 56], [17, 91, 68], [21, 107, 80], [24, 124, 92], [28, 140, 104], [32, 154, 114], [36, 170, 126], [39, 187, 138], [43, 203, 150], [49, 217, 161], [64, 220, 168], [79, 224, 175], [94, 227, 183], [109, 231, 190], [125, 234, 197], [140, 237, 205], [155, 241, 212], [170, 244, 219], [185, 248, 227], [200, 251, 234], [216, 255, 242]], grad:'#000,#04241c,#2fd9a0,#d8fff2'},
+  blush: {name:'Blush', lut:[[0, 0, 0], [4, 1, 2], [8, 2, 5], [13, 3, 8], [17, 4, 10], [21, 5, 13], [26, 6, 16], [30, 7, 19], [35, 8, 21], [39, 9, 24], [50, 13, 31], [69, 23, 43], [88, 32, 56], [107, 41, 68], [126, 50, 81], [145, 59, 93], [164, 68, 106], [181, 76, 117], [200, 85, 129], [219, 94, 142], [238, 103, 154], [255, 112, 166], [255, 123, 172], [255, 133, 179], [255, 143, 185], [255, 154, 192], [255, 164, 198], [255, 175, 205], [255, 185, 211], [255, 195, 218], [255, 206, 224], [255, 216, 231], [255, 227, 238]], grad:'#000,#2a0a1a,#ff6fa5,#ffe3ee'},
+  storm: {name:'Storm', lut:[[0, 0, 0], [2, 2, 3], [4, 5, 7], [6, 7, 11], [8, 10, 15], [10, 12, 18], [12, 15, 22], [14, 17, 26], [16, 20, 30], [18, 22, 33], [21, 26, 39], [25, 32, 47], [28, 38, 56], [32, 44, 64], [36, 50, 72], [39, 56, 80], [43, 62, 89], [46, 67, 96], [50, 73, 104], [54, 79, 112], [57, 85, 121], [62, 91, 129], [70, 100, 137], [78, 109, 145], [86, 119, 153], [94, 128, 161], [103, 137, 169], [111, 146, 177], [119, 156, 185], [127, 165, 193], [135, 174, 201], [143, 183, 209], [152, 193, 217]], grad:'#000,#141824,#3d5a80,#98c1d9'},
+  neon: {name:'Neon', lut:[[13, 13, 13], [34, 11, 21], [56, 10, 30], [78, 9, 39], [99, 8, 47], [121, 7, 56], [143, 6, 65], [164, 4, 73], [186, 3, 82], [208, 2, 91], [229, 1, 99], [251, 0, 108], [239, 10, 121], [220, 23, 135], [201, 36, 149], [183, 48, 162], [164, 61, 176], [147, 72, 188], [129, 85, 202], [110, 98, 216], [91, 111, 230], [72, 123, 243], [59, 132, 254], [66, 124, 252], [73, 117, 250], [80, 109, 249], [88, 101, 247], [95, 94, 245], [102, 86, 243], [109, 78, 241], [116, 71, 239], [123, 63, 237], [131, 56, 236]], grad:'#0d0d0d,#ff006e,#3a86ff,#8338ec'},
+  sand: {name:'Sand', lut:[[0, 0, 0], [4, 3, 1], [9, 7, 3], [14, 11, 5], [19, 15, 6], [24, 18, 8], [28, 22, 10], [33, 26, 11], [38, 30, 13], [43, 33, 15], [52, 41, 18], [65, 52, 25], [79, 63, 32], [93, 75, 39], [107, 86, 46], [121, 98, 53], [135, 109, 59], [147, 119, 65], [161, 131, 72], [175, 142, 79], [189, 154, 86], [201, 164, 93], [205, 170, 103], [209, 176, 112], [213, 182, 122], [217, 188, 132], [221, 194, 141], [225, 200, 151], [229, 206, 161], [233, 212, 170], [237, 218, 180], [241, 224, 190], [245, 230, 200]], grad:'#000,#2e2410,#c9a45c,#f5e6c8'},
+  frost: {name:'Frost', lut:[[0, 0, 0], [1, 3, 4], [2, 6, 8], [3, 9, 13], [4, 12, 17], [5, 15, 21], [6, 18, 26], [7, 21, 30], [8, 25, 35], [9, 28, 39], [13, 37, 50], [20, 53, 69], [28, 69, 88], [36, 86, 107], [43, 102, 126], [51, 118, 145], [59, 135, 164], [65, 149, 181], [73, 165, 200], [80, 181, 219], [88, 198, 238], [97, 212, 255], [111, 216, 255], [125, 220, 255], [140, 224, 255], [154, 228, 255], [168, 231, 255], [183, 235, 255], [197, 239, 255], [211, 243, 255], [226, 247, 255], [240, 251, 255], [255, 255, 255]], grad:'#000,#0a1e2a,#5fd4ff,#ffffff'},
+  prisme: {name:'Prisme', lut:[[8, 7, 15], [14, 18, 38], [21, 30, 61], [28, 41, 84], [34, 52, 107], [33, 75, 124], [32, 98, 140], [32, 120, 157], [31, 143, 174], [39, 159, 165], [47, 175, 156], [55, 191, 147], [63, 207, 138], [101, 208, 122], [140, 209, 106], [178, 210, 90], [216, 211, 74], [222, 189, 71], [228, 166, 68], [233, 144, 65], [239, 122, 62], [236, 109, 85], [234, 96, 108], [232, 84, 131], [229, 71, 154], [233, 104, 174], [238, 136, 193], [242, 168, 212], [246, 201, 232], [248, 214, 238], [250, 228, 244], [253, 242, 249], [255, 255, 255]], grad:'#08070f,#d8d34a,#ffffff'},
+  neonuit: {name:'Néon nuit', lut:[[5, 3, 13], [10, 5, 25], [15, 6, 38], [19, 8, 50], [24, 9, 62], [31, 11, 78], [42, 12, 97], [52, 14, 117], [62, 16, 137], [73, 18, 157], [89, 20, 169], [107, 23, 180], [125, 26, 190], [142, 29, 200], [161, 32, 205], [183, 36, 194], [205, 39, 183], [227, 42, 172], [249, 46, 161], [255, 59, 145], [255, 75, 128], [255, 92, 110], [255, 108, 92], [255, 125, 78], [255, 144, 85], [255, 164, 92], [255, 183, 100], [255, 203, 107], [255, 215, 123], [255, 222, 145], [255, 229, 167], [255, 236, 190], [255, 243, 212]], grad:'#05030d,#ff2f9e,#fff3d4'},
+  vitrail: {name:'Vitrail', lut:[[10, 5, 18], [21, 7, 33], [32, 9, 48], [43, 12, 63], [54, 14, 78], [66, 16, 91], [79, 17, 100], [93, 18, 109], [106, 20, 118], [120, 21, 127], [135, 25, 124], [150, 30, 119], [166, 34, 114], [181, 39, 109], [194, 46, 103], [203, 58, 92], [212, 70, 82], [221, 82, 72], [230, 94, 61], [234, 111, 59], [236, 128, 60], [238, 146, 60], [240, 164, 61], [240, 180, 62], [228, 188, 65], [215, 197, 68], [202, 205, 70], [189, 213, 73], [189, 220, 90], [197, 226, 117], [206, 232, 145], [214, 237, 172], [223, 243, 200]], grad:'#0a0512,#e8623a,#dff3c8'},
+  vapeur: {name:'Vapeur', lut:[[12, 10, 24], [19, 15, 36], [25, 21, 48], [32, 26, 61], [38, 32, 73], [47, 39, 86], [57, 48, 101], [68, 57, 116], [79, 66, 131], [89, 76, 146], [103, 86, 157], [117, 97, 168], [130, 108, 178], [144, 119, 188], [158, 130, 198], [170, 139, 203], [182, 148, 208], [195, 156, 213], [207, 165, 218], [216, 173, 219], [223, 180, 218], [229, 188, 218], [236, 195, 217], [242, 202, 216], [245, 209, 218], [248, 216, 221], [251, 223, 223], [254, 230, 225], [255, 236, 230], [255, 241, 236], [255, 245, 242], [255, 250, 249], [255, 255, 255]], grad:'#0c0a18,#d3a8dc,#ffffff'},
+  recif: {name:'Récif', lut:[[4, 16, 26], [5, 25, 38], [7, 34, 51], [8, 42, 63], [9, 51, 76], [11, 60, 88], [12, 72, 100], [13, 84, 111], [14, 97, 123], [16, 110, 135], [17, 122, 146], [20, 135, 154], [25, 146, 156], [31, 157, 157], [36, 168, 158], [42, 180, 159], [47, 191, 160], [65, 196, 153], [83, 202, 147], [101, 207, 140], [119, 213, 134], [137, 218, 127], [153, 222, 126], [169, 224, 128], [184, 227, 130], [200, 230, 131], [216, 232, 133], [228, 235, 139], [233, 237, 152], [238, 239, 166], [243, 242, 180], [248, 244, 194], [253, 246, 208]], grad:'#04101a,#2fbfa0,#fdf6d0'},
+  ecliptique: {name:'Écliptique', lut:[[6, 6, 20], [10, 12, 33], [13, 17, 46], [17, 23, 59], [21, 29, 72], [25, 36, 86], [30, 47, 101], [36, 57, 117], [41, 67, 132], [46, 78, 148], [53, 91, 160], [60, 105, 171], [67, 119, 182], [74, 133, 193], [83, 146, 202], [97, 158, 206], [111, 170, 210], [125, 183, 215], [139, 195, 219], [155, 198, 210], [171, 197, 195], [187, 196, 181], [203, 196, 166], [218, 194, 152], [223, 186, 139], [228, 179, 126], [233, 171, 113], [238, 163, 100], [242, 167, 103], [245, 180, 119], [248, 192, 136], [252, 205, 152], [255, 217, 168]], grad:'#060614,#8fc6dc,#ffd9a8'},
+  carnaval: {name:'Carnaval', lut:[[13, 4, 16], [28, 6, 30], [43, 8, 44], [58, 10, 58], [73, 12, 72], [88, 14, 85], [104, 16, 96], [120, 18, 106], [136, 19, 116], [152, 20, 126], [168, 22, 136], [183, 25, 141], [194, 30, 137], [206, 36, 133], [217, 42, 130], [229, 47, 126], [240, 53, 122], [243, 66, 111], [246, 80, 100], [248, 93, 88], [251, 106, 77], [254, 120, 66], [255, 134, 62], [255, 148, 61], [255, 162, 61], [255, 177, 61], [255, 191, 60], [255, 203, 66], [253, 210, 84], [252, 218, 101], [251, 225, 119], [249, 232, 136], [248, 239, 154]], grad:'#0d0410,#f0357a,#f8ef9a'},
+  maree: {name:'Marée', lut:[[3, 12, 20], [4, 19, 31], [6, 27, 42], [7, 34, 54], [8, 41, 65], [10, 49, 76], [11, 59, 90], [12, 71, 105], [14, 82, 120], [16, 94, 135], [17, 106, 150], [20, 118, 162], [27, 131, 169], [33, 144, 176], [40, 156, 182], [46, 169, 189], [53, 182, 196], [68, 190, 197], [83, 198, 198], [99, 206, 198], [114, 214, 199], [129, 221, 200], [144, 226, 201], [159, 229, 202], [174, 232, 204], [190, 235, 206], [205, 238, 207], [218, 241, 211], [225, 244, 220], [232, 247, 229], [240, 249, 237], [248, 252, 246], [255, 255, 255]], grad:'#030c14,#35b6c4,#ffffff'},
+  couchant: {name:'Couchant', lut:[[8, 6, 26], [16, 8, 38], [25, 11, 51], [33, 13, 63], [41, 16, 76], [52, 18, 84], [66, 20, 88], [79, 22, 92], [93, 24, 95], [107, 26, 98], [121, 30, 98], [135, 35, 97], [148, 39, 96], [162, 44, 95], [175, 49, 92], [187, 58, 85], [198, 66, 78], [209, 74, 72], [221, 83, 65], [228, 95, 62], [233, 108, 61], [238, 122, 60], [244, 135, 59], [248, 149, 60], [250, 162, 70], [251, 175, 81], [253, 188, 92], [254, 201, 102], [255, 211, 118], [255, 218, 138], [255, 226, 158], [255, 233, 178], [255, 240, 198]], grad:'#08061a,#e0553f,#fff0c6'},
+  iris: {name:'Iris', lut:[[6, 5, 18], [14, 8, 36], [22, 12, 55], [30, 15, 73], [38, 18, 92], [48, 22, 109], [58, 27, 127], [68, 32, 144], [79, 37, 161], [90, 42, 179], [103, 50, 188], [117, 58, 195], [130, 66, 203], [144, 73, 211], [157, 82, 217], [168, 91, 220], [179, 100, 224], [190, 110, 228], [201, 119, 231], [209, 129, 233], [215, 139, 235], [222, 149, 236], [228, 159, 238], [234, 169, 239], [238, 180, 241], [241, 190, 242], [244, 200, 244], [247, 210, 245], [249, 219, 247], [250, 228, 249], [252, 237, 251], [253, 246, 253], [255, 255, 255]], grad:'#060512,#cc7ae8,#ffffff'},
+  cuivrec: {name:'Cuivre chaud', lut:[[16, 6, 3], [26, 9, 4], [35, 11, 6], [45, 14, 7], [54, 16, 8], [64, 19, 10], [74, 23, 11], [85, 28, 12], [96, 32, 13], [107, 36, 14], [118, 41, 15], [129, 46, 17], [140, 53, 19], [151, 60, 21], [162, 66, 24], [173, 73, 26], [184, 80, 28], [192, 89, 32], [199, 98, 35], [206, 108, 39], [214, 117, 42], [222, 126, 46], [226, 135, 53], [229, 144, 62], [232, 154, 71], [235, 163, 80], [238, 172, 89], [240, 181, 99], [242, 188, 112], [244, 196, 125], [245, 204, 138], [246, 211, 151], [248, 219, 164]], grad:'#100603,#b8501c,#f8dba4'},
+  piment: {name:'Piment', lut:[[14, 2, 4], [26, 2, 6], [38, 3, 8], [49, 3, 11], [61, 4, 13], [73, 4, 15], [86, 5, 18], [99, 6, 20], [112, 6, 22], [126, 7, 24], [139, 8, 26], [152, 10, 28], [163, 15, 29], [174, 19, 30], [185, 23, 30], [196, 28, 31], [207, 32, 32], [213, 43, 34], [219, 54, 36], [226, 65, 38], [232, 76, 40], [238, 86, 41], [242, 98, 44], [245, 110, 48], [248, 122, 52], [250, 135, 56], [253, 147, 60], [255, 159, 66], [255, 170, 78], [255, 181, 90], [255, 192, 102], [255, 203, 114], [255, 214, 126]], grad:'#0e0204,#cf2020,#ffd67e'},
+  ambre: {name:'Ambre', lut:[[18, 10, 2], [28, 16, 3], [39, 22, 3], [50, 28, 4], [60, 34, 4], [70, 40, 5], [82, 47, 6], [94, 55, 8], [106, 64, 10], [118, 72, 13], [130, 80, 15], [142, 88, 17], [154, 98, 19], [166, 108, 21], [177, 118, 24], [189, 128, 26], [201, 138, 28], [208, 146, 34], [215, 154, 40], [222, 163, 46], [229, 171, 52], [236, 179, 58], [239, 186, 68], [241, 193, 81], [243, 200, 93], [245, 206, 105], [247, 213, 118], [248, 218, 130], [249, 223, 144], [250, 227, 157], [251, 231, 170], [252, 236, 183], [253, 240, 196]], grad:'#120a02,#c98a1c,#fdf0c4'},
+  terracotta: {name:'Terracotta', lut:[[18, 8, 6], [28, 11, 8], [37, 15, 10], [47, 18, 13], [56, 22, 15], [66, 25, 17], [76, 29, 20], [86, 34, 24], [97, 40, 27], [108, 45, 30], [118, 50, 34], [128, 55, 37], [139, 62, 42], [149, 69, 46], [159, 76, 50], [170, 83, 54], [180, 90, 58], [187, 98, 64], [194, 106, 71], [201, 115, 77], [208, 123, 84], [215, 131, 90], [220, 140, 99], [224, 148, 109], [228, 156, 118], [231, 165, 128], [235, 173, 138], [239, 182, 149], [240, 189, 160], [242, 197, 170], [244, 205, 181], [246, 212, 192], [248, 220, 203]], grad:'#120806,#b45a3a,#f8dccb'},
+  orrose: {name:'Or rose', lut:[[20, 7, 12], [30, 10, 17], [40, 13, 22], [50, 15, 27], [60, 18, 32], [71, 21, 36], [82, 25, 42], [94, 29, 48], [106, 33, 54], [119, 37, 59], [131, 41, 65], [142, 46, 71], [152, 54, 78], [163, 62, 85], [173, 69, 92], [183, 76, 99], [193, 84, 106], [199, 94, 113], [205, 104, 120], [210, 114, 126], [216, 124, 133], [222, 135, 140], [226, 144, 146], [229, 152, 153], [232, 161, 159], [235, 170, 165], [238, 178, 172], [241, 187, 179], [243, 194, 186], [245, 202, 194], [247, 210, 202], [249, 218, 210], [251, 226, 218]], grad:'#14070c,#c1546a,#fbe2da'},
+  abysse: {name:'Abysse', lut:[[1, 6, 14], [2, 11, 22], [2, 16, 30], [3, 21, 38], [4, 26, 46], [5, 30, 53], [6, 36, 61], [7, 43, 69], [8, 50, 78], [8, 57, 86], [9, 64, 94], [10, 71, 102], [12, 79, 110], [14, 87, 118], [15, 96, 126], [16, 104, 135], [18, 112, 143], [23, 121, 150], [27, 130, 157], [32, 139, 164], [37, 148, 171], [41, 157, 178], [52, 165, 184], [66, 173, 190], [80, 182, 196], [93, 190, 202], [107, 198, 208], [122, 205, 214], [138, 212, 219], [155, 218, 224], [172, 225, 230], [188, 231, 235], [205, 238, 240]], grad:'#01060e,#12708f,#cdeef0'},
+  givre: {name:'Givre', lut:[[6, 11, 18], [9, 17, 26], [12, 22, 35], [15, 28, 43], [18, 34, 52], [21, 39, 60], [25, 46, 69], [29, 54, 78], [33, 61, 88], [37, 68, 97], [41, 76, 106], [46, 84, 115], [52, 94, 125], [58, 103, 135], [65, 113, 144], [71, 122, 154], [77, 132, 164], [87, 142, 172], [97, 151, 180], [107, 161, 188], [117, 170, 196], [127, 180, 204], [137, 188, 210], [148, 195, 215], [159, 202, 220], [170, 208, 226], [181, 215, 231], [191, 222, 235], [201, 228, 239], [211, 233, 242], [220, 239, 246], [230, 244, 249], [240, 250, 253]], grad:'#060b12,#4d84a4,#f0fafd'},
+  nuitbleue: {name:'Nuit bleue', lut:[[1, 3, 12], [2, 6, 19], [3, 9, 27], [4, 11, 34], [6, 14, 41], [7, 17, 49], [8, 21, 57], [10, 26, 66], [11, 30, 75], [12, 34, 84], [14, 39, 93], [16, 44, 103], [18, 50, 113], [21, 56, 124], [24, 62, 135], [26, 68, 145], [29, 74, 156], [34, 83, 164], [40, 91, 173], [45, 100, 181], [51, 108, 190], [56, 117, 198], [66, 126, 204], [78, 136, 208], [90, 145, 212], [101, 154, 215], [113, 164, 219], [126, 173, 223], [140, 182, 227], [153, 191, 231], [167, 199, 234], [181, 208, 238], [195, 217, 242]], grad:'#01030c,#1d4a9c,#c3d9f2'},
+  jade: {name:'Jade', lut:[[4, 18, 15], [5, 26, 22], [6, 33, 28], [7, 40, 35], [8, 48, 42], [10, 56, 49], [11, 64, 56], [12, 72, 63], [14, 80, 70], [16, 88, 78], [17, 96, 85], [19, 105, 92], [22, 114, 99], [25, 123, 106], [28, 131, 113], [31, 140, 120], [34, 149, 127], [42, 157, 133], [50, 165, 139], [58, 173, 146], [66, 181, 152], [74, 189, 158], [86, 196, 164], [100, 201, 171], [114, 206, 178], [127, 211, 185], [141, 216, 192], [154, 221, 198], [168, 226, 205], [181, 230, 212], [194, 234, 218], [207, 238, 225], [220, 242, 232]], grad:'#04120f,#22957f,#dcf2e8'},
+  lagon: {name:'Lagon', lut:[[4, 18, 21], [5, 27, 30], [6, 35, 39], [6, 44, 49], [7, 52, 58], [8, 61, 67], [9, 71, 77], [10, 82, 87], [12, 93, 97], [13, 104, 107], [14, 115, 117], [16, 126, 126], [20, 136, 134], [23, 147, 142], [27, 158, 149], [30, 168, 156], [34, 179, 164], [47, 186, 168], [60, 193, 173], [72, 200, 178], [85, 207, 182], [98, 214, 186], [112, 218, 192], [127, 222, 197], [142, 226, 202], [157, 230, 207], [172, 234, 212], [186, 237, 218], [196, 240, 224], [207, 243, 229], [218, 245, 235], [229, 248, 240], [240, 251, 246]], grad:'#041215,#22b3a4,#f0fbf6'},
+  fluo: {name:'Fluo', lut:[[5, 10, 4], [6, 22, 7], [7, 34, 9], [8, 46, 12], [10, 58, 14], [11, 70, 17], [12, 85, 21], [14, 101, 26], [16, 117, 30], [17, 133, 34], [19, 149, 39], [24, 164, 43], [34, 176, 46], [45, 188, 50], [56, 200, 53], [66, 212, 57], [77, 224, 60], [97, 228, 60], [117, 232, 59], [137, 236, 59], [157, 240, 58], [177, 244, 58], [191, 246, 66], [202, 248, 78], [212, 250, 90], [222, 252, 102], [233, 254, 114], [241, 255, 127], [244, 255, 144], [247, 255, 160], [249, 255, 176], [252, 255, 192], [255, 255, 208]], grad:'#050a04,#4de03c,#ffffd0'},
+  pop: {name:'Pop', lut:[[10, 4, 16], [22, 6, 34], [34, 8, 52], [46, 10, 70], [58, 12, 88], [70, 14, 106], [83, 15, 120], [97, 16, 133], [111, 16, 146], [125, 17, 158], [139, 18, 171], [153, 19, 177], [167, 21, 171], [181, 24, 165], [196, 26, 158], [210, 29, 152], [224, 31, 146], [230, 42, 136], [236, 53, 125], [241, 64, 114], [247, 75, 104], [253, 86, 94], [255, 101, 86], [255, 117, 81], [255, 133, 75], [255, 149, 69], [255, 165, 64], [255, 180, 65], [255, 192, 80], [255, 204, 94], [255, 216, 109], [255, 228, 123], [255, 240, 138]], grad:'#0a0410,#e01f92,#fff08a'},
+  arcade: {name:'Arcade', lut:[[4, 4, 14], [6, 8, 29], [8, 12, 43], [11, 16, 58], [13, 20, 72], [15, 25, 87], [18, 34, 106], [21, 47, 126], [24, 60, 146], [26, 73, 167], [29, 86, 187], [32, 99, 202], [35, 114, 207], [38, 130, 211], [41, 145, 215], [44, 161, 220], [47, 176, 224], [54, 185, 212], [60, 194, 200], [67, 203, 188], [73, 212, 176], [80, 221, 164], [99, 226, 151], [124, 229, 138], [149, 232, 125], [174, 235, 112], [199, 238, 99], [218, 240, 94], [226, 240, 108], [233, 241, 121], [240, 241, 134], [248, 242, 147], [255, 242, 160]], grad:'#04040e,#2fb0e0,#fff2a0'},
+  bonbon: {name:'Bonbon', lut:[[18, 6, 14], [29, 8, 23], [40, 10, 33], [51, 13, 42], [62, 15, 52], [73, 17, 61], [86, 20, 71], [99, 23, 82], [112, 26, 93], [126, 29, 104], [139, 32, 115], [152, 36, 124], [164, 42, 131], [176, 48, 138], [188, 53, 144], [200, 59, 151], [212, 65, 158], [218, 76, 163], [224, 86, 168], [231, 97, 173], [237, 108, 178], [243, 118, 182], [246, 129, 187], [247, 139, 192], [248, 149, 196], [249, 159, 200], [250, 169, 205], [251, 179, 210], [252, 188, 215], [253, 197, 220], [254, 206, 226], [254, 215, 231], [255, 224, 236]], grad:'#12060e,#d4419e,#ffe0ec'},
+  laser: {name:'Laser', lut:[[3, 3, 16], [7, 4, 28], [11, 6, 41], [15, 7, 53], [19, 8, 66], [23, 10, 78], [28, 11, 93], [35, 12, 109], [41, 14, 125], [47, 16, 141], [54, 17, 157], [62, 19, 172], [74, 21, 182], [86, 24, 192], [98, 26, 203], [110, 29, 214], [122, 31, 224], [135, 37, 227], [148, 43, 230], [161, 50, 233], [174, 56, 236], [188, 62, 239], [198, 71, 239], [207, 82, 238], [216, 92, 236], [225, 102, 234], [234, 113, 233], [241, 125, 233], [243, 139, 235], [246, 153, 237], [248, 168, 240], [251, 182, 242], [253, 196, 244]], grad:'#030310,#7a1fe0,#fdc4f4'},
+  brume: {name:'Brume', lut:[[10, 12, 16], [15, 18, 23], [19, 23, 30], [24, 29, 37], [29, 34, 44], [33, 40, 52], [39, 47, 59], [46, 54, 67], [52, 61, 74], [58, 68, 82], [65, 75, 90], [72, 83, 98], [80, 91, 106], [87, 99, 114], [95, 108, 122], [103, 116, 131], [111, 124, 139], [120, 133, 147], [129, 142, 155], [138, 150, 163], [147, 159, 171], [156, 168, 179], [165, 176, 187], [173, 184, 194], [182, 192, 201], [190, 200, 208], [198, 208, 215], [206, 215, 222], [214, 221, 227], [221, 227, 232], [228, 234, 238], [235, 240, 243], [242, 246, 248]], grad:'#0a0c10,#6f7c8b,#f2f6f8'},
+  lin: {name:'Lin', lut:[[16, 12, 7], [24, 19, 12], [32, 25, 17], [40, 32, 22], [48, 38, 27], [55, 45, 32], [64, 52, 38], [73, 60, 45], [82, 68, 51], [90, 77, 57], [99, 85, 64], [108, 93, 70], [118, 102, 78], [127, 111, 86], [136, 120, 93], [146, 129, 100], [155, 138, 108], [163, 146, 116], [170, 154, 124], [178, 162, 133], [186, 170, 141], [193, 178, 149], [200, 185, 158], [205, 192, 166], [211, 198, 174], [217, 205, 182], [222, 212, 190], [227, 218, 198], [232, 222, 205], [236, 227, 212], [240, 232, 218], [244, 237, 225], [248, 242, 232]], grad:'#100c07,#9b8a6c,#f8f2e8'},
+  peche: {name:'Pêche', lut:[[20, 9, 10], [30, 13, 14], [40, 18, 18], [50, 22, 22], [60, 26, 26], [71, 31, 31], [82, 36, 35], [94, 42, 40], [106, 48, 44], [118, 54, 48], [130, 60, 53], [142, 67, 58], [152, 76, 64], [162, 85, 69], [173, 93, 75], [184, 102, 80], [194, 111, 86], [201, 120, 93], [207, 129, 100], [214, 139, 107], [220, 148, 114], [227, 157, 122], [231, 165, 130], [234, 172, 139], [236, 180, 148], [239, 188, 157], [242, 195, 166], [245, 202, 175], [246, 208, 184], [248, 215, 193], [250, 221, 201], [251, 228, 210], [253, 234, 219]], grad:'#14090a,#c26f56,#fdeadb'},
+  sauge: {name:'Sauge', lut:[[10, 15, 10], [15, 23, 16], [20, 30, 22], [26, 38, 28], [31, 46, 34], [36, 53, 40], [42, 62, 47], [49, 70, 54], [56, 79, 61], [63, 88, 68], [70, 96, 75], [77, 105, 83], [85, 114, 91], [94, 122, 99], [102, 131, 108], [111, 139, 116], [119, 148, 124], [128, 156, 133], [137, 164, 141], [147, 172, 150], [156, 180, 158], [165, 188, 167], [173, 195, 175], [181, 201, 182], [190, 208, 190], [198, 214, 198], [206, 220, 205], [213, 226, 212], [219, 230, 218], [225, 234, 223], [230, 239, 229], [236, 244, 234], [242, 248, 240]], grad:'#0a0f0a,#77947c,#f2f8f0'},
+  lavande: {name:'Lavande', lut:[[11, 9, 18], [16, 14, 28], [22, 18, 38], [27, 22, 47], [32, 27, 57], [37, 32, 67], [43, 37, 76], [50, 42, 85], [56, 48, 94], [63, 54, 103], [70, 59, 112], [77, 66, 121], [85, 73, 130], [93, 81, 138], [101, 89, 147], [109, 96, 155], [117, 104, 164], [126, 113, 171], [136, 123, 178], [145, 132, 184], [154, 142, 191], [164, 151, 198], [172, 160, 203], [180, 168, 208], [188, 177, 213], [195, 186, 218], [203, 194, 223], [210, 202, 227], [216, 210, 232], [223, 217, 236], [229, 224, 240], [236, 231, 244], [242, 238, 248]], grad:'#0b0912,#7568a4,#f2eef8'},
+  radiation: {name:'Radiation', lut:[[5, 10, 2], [9, 22, 2], [13, 34, 3], [17, 46, 3], [21, 58, 4], [25, 70, 4], [32, 84, 4], [41, 100, 5], [50, 115, 6], [59, 130, 7], [68, 146, 8], [79, 160, 9], [94, 170, 10], [109, 180, 12], [124, 191, 14], [139, 202, 16], [154, 212, 18], [169, 217, 21], [183, 222, 25], [198, 228, 28], [212, 233, 32], [227, 238, 35], [234, 232, 58], [237, 220, 90], [240, 208, 122], [243, 196, 154], [246, 184, 186], [248, 179, 210], [250, 189, 217], [251, 199, 224], [252, 208, 230], [254, 218, 237], [255, 228, 244]], grad:'#050a02,#9ad412,#ffe4f4'},
+  infrarouge: {name:'Infrarouge', lut:[[10, 2, 6], [20, 2, 12], [30, 3, 18], [39, 3, 24], [49, 4, 30], [59, 4, 36], [70, 5, 42], [81, 6, 47], [93, 7, 53], [105, 8, 59], [116, 9, 64], [128, 10, 69], [140, 12, 71], [152, 14, 73], [164, 15, 76], [176, 16, 78], [188, 18, 80], [196, 27, 79], [204, 35, 78], [213, 44, 77], [221, 52, 76], [229, 61, 74], [234, 73, 76], [237, 87, 80], [240, 101, 84], [243, 115, 88], [246, 129, 92], [248, 142, 98], [249, 156, 110], [250, 169, 123], [250, 182, 135], [251, 195, 148], [252, 208, 160]], grad:'#0a0206,#bc1250,#fcd0a0'},
+  oscillo: {name:'Oscilloscope', lut:[[1, 6, 4], [1, 14, 8], [2, 22, 12], [2, 30, 15], [2, 38, 19], [3, 45, 23], [3, 54, 27], [4, 63, 32], [4, 72, 36], [5, 81, 40], [6, 90, 45], [6, 100, 50], [7, 112, 56], [8, 124, 62], [8, 136, 68], [9, 148, 74], [10, 160, 80], [14, 170, 88], [19, 181, 95], [24, 192, 102], [28, 202, 110], [32, 212, 118], [46, 219, 127], [65, 224, 138], [84, 228, 148], [103, 232, 158], [122, 237, 169], [139, 241, 179], [156, 243, 188], [172, 245, 197], [188, 248, 206], [204, 250, 215], [220, 252, 224]], grad:'#010604,#0aa050,#dcfce0'},
+  magnetique: {name:'Magnétique', lut:[[4, 3, 12], [8, 5, 23], [12, 6, 34], [16, 8, 45], [20, 10, 56], [25, 11, 66], [30, 14, 79], [37, 16, 92], [44, 19, 105], [50, 22, 118], [57, 24, 131], [64, 28, 144], [72, 33, 154], [81, 38, 164], [89, 43, 175], [98, 48, 186], [106, 53, 196], [115, 61, 201], [124, 70, 206], [133, 78, 212], [142, 87, 217], [151, 95, 222], [160, 105, 226], [168, 116, 229], [176, 126, 232], [185, 136, 235], [193, 147, 238], [201, 158, 241], [208, 169, 242], [215, 180, 244], [222, 192, 246], [229, 203, 248], [236, 214, 250]], grad:'#04030c,#6a35c4,#ecd6fa'},
+  solaire: {name:'Solaire', lut:[[12, 6, 0], [21, 10, 0], [29, 14, 0], [38, 18, 0], [46, 22, 0], [55, 27, 0], [66, 32, 0], [78, 39, 0], [90, 46, 0], [102, 53, 0], [114, 60, 0], [126, 67, 0], [138, 76, 0], [151, 84, 0], [163, 93, 0], [176, 101, 0], [188, 110, 0], [196, 119, 4], [204, 127, 8], [213, 136, 11], [221, 144, 15], [229, 153, 19], [234, 161, 26], [237, 169, 36], [240, 178, 46], [244, 186, 56], [247, 194, 66], [249, 201, 77], [250, 207, 92], [252, 213, 108], [253, 220, 123], [254, 226, 139], [255, 232, 154]], grad:'#0c0600,#bc6e00,#ffe89a'},
+  anodise: {name:'Anodisé', lut:[[6, 6, 10], [10, 11, 19], [14, 16, 27], [18, 21, 36], [22, 26, 44], [27, 30, 53], [32, 37, 63], [38, 45, 74], [44, 53, 85], [50, 61, 96], [56, 69, 107], [63, 77, 117], [72, 86, 128], [80, 95, 138], [89, 104, 148], [97, 113, 158], [106, 122, 168], [115, 131, 175], [124, 139, 182], [133, 148, 188], [142, 156, 195], [151, 165, 202], [160, 173, 207], [168, 181, 212], [177, 189, 217], [186, 197, 222], [194, 205, 227], [202, 212, 231], [210, 218, 235], [218, 225, 239], [225, 231, 242], [232, 238, 246], [240, 244, 250]], grad:'#06060a,#6a7aa8,#f0f4fa'},
+};
+const PAL = {};
+for (const id in PAL_DATA){
+  const lut = PAL_DATA[id].lut;
+  const n = lut.length;
+  PAL[id] = {
+    name: PAL_DATA[id].name,
+    grad: PAL_DATA[id].grad,
+    fn: (v)=>{
+      v = v<0?0:(v>1?1:v);
+      const idx = Math.min(n-1, Math.round(v*(n-1)));
+      return lut[idx];
+    }
+  };
+}
+
+/* ============ TABLE ANIMATIONS ============ */
+const ANIM = {
+  spectre: {name:'Spectre', icon:'wave', remote:true, render:renderRemote, params:{
+    chute:{v:0.5,min:0,max:1,step:0.05,label:'Chute'},
+    miroir:{v:0,min:0,max:1,step:1,label:'Miroir'}}},
+  pulse: {name:'Pulse', icon:'wave', remote:true, render:renderRemote, params:{
+    taille:{v:0.5,min:0,max:1,step:0.05,label:'Taille'},
+    onde:{v:0.6,min:0,max:1,step:0.05,label:'Anneaux'}}},
+  onde: {name:'Onde', icon:'wave', remote:true, render:renderRemote, params:{
+    ampl:{v:0.6,min:0,max:1,step:0.05,label:'Amplitude'},
+    trait:{v:0.4,min:0,max:1,step:0.05,label:'Trait'}}},
+  mirror: {name:'Miroir', icon:'cam', remote:true, render:renderRemote, params:{
+    gain:{v:1,min:0,max:2,step:0.05,label:'Contraste'},
+    tint:{v:0,min:0,max:1,step:0.05,label:'Teinte'}}},
+  silhouette: {name:'Silhouette', icon:'cam', remote:true, render:renderRemote, params:{
+    seuil:{v:0.5,min:0,max:1,step:0.05,label:'Seuil'},
+    memoire:{v:0.5,min:0,max:1,step:0.05,label:'Mémoire'},
+    doux:{v:0.3,min:0,max:1,step:0.05,label:'Douceur'}}},
+  trace: {name:'Traces', icon:'cam', remote:true, render:renderRemote, params:{
+    persist:{v:0.6,min:0,max:1,step:0.05,label:'Rémanence'},
+    force:{v:0.6,min:0,max:1,step:0.05,label:'Force'}}},
+  orb: {name:'Disque', render:(t,p,pal)=>renderOrb(t,p,pal), params:{
+    speed:{v:0.25,min:0,max:1.5,step:0.05,label:'Dérive'},
+    size:{v:0.28,min:0.08,max:0.46,step:0.01,label:'Taille'},
+    glow:{v:0.5,min:0,max:1,step:0.05,label:'Halo'},
+    warm:{v:1,min:0,max:1,step:0.05,label:'Ambre'}}},
+  photo: {name:'Photo', render:(t,p,pal)=>renderPhoto(t,p,pal), params:{}},
+  draw: {name:'Dessin', render:renderDraw, params:{
+    brush:{v:2,min:1,max:6,step:1,label:'Pinceau'}}},
+  weather: {name:'Météo', render:renderWeather, params:{}},
+  aujourdhui: {name:"Aujourd'hui", icon:'aujourdhui', render:renderAujourdhui, params:{}},
+  plasma:  {name:'Plasma',  render:renderPlasma,  params:{
+    speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
+    freq: {v:14,min:4,max:30,step:0.5,label:'Échelle'},
+    mix:  {v:0.8,min:0,max:1.5,step:0.05,label:'Mélange'}}},
+  truchet: {name:'Truchet', render:renderTruchet, params:{
+    speed:{v:0.6,min:0,max:3,step:0.05,label:'Vitesse'},
+    scale:{v:8, min:2,max:16,step:1,   label:'Tuile'},
+    thick:{v:1.5,min:0.5,max:4,step:0.1,label:'Épaisseur'}}},
+  moire:   {name:'Moiré',   render:renderMoire,   params:{
+    speed:{v:0.9,min:0,max:3,step:0.05,label:'Vitesse'},
+    freq1:{v:0.25,min:0.05,max:1,step:0.02,label:'Trame 1'},
+    freq2:{v:0.32,min:0.05,max:1,step:0.02,label:'Trame 2'}}},
+  rings:   {name:'Anneaux', render:renderRings,   params:{
+    speed:{v:0.7,min:0,max:3,step:0.05,label:'Vitesse'},
+    count:{v:0.4,min:0.1,max:1.5,step:0.02,label:'Densité'},
+    sharp:{v:1.5,min:0.5,max:5,step:0.1,label:'Netteté'}}},
+  checkers:{name:'Damier',  render:renderCheckers, params:{
+    speed:{v:0.6,min:0,max:3,step:0.05,label:'Vitesse'},
+    scale:{v:9,  min:3,max:20,step:1,  label:'Taille'}}},
+  kaleido: {name:'Kaléido', render:renderKaleido,  params:{
+    speed:{v:0.7,min:0,max:3,step:0.05,label:'Vitesse'},
+    segments:{v:6,min:2,max:16,step:1, label:'Segments'},
+    scale:{v:1,  min:0.2,max:3,step:0.05,label:'Échelle'}}},
+  orbit:   {name:'Orbite',  render:renderOrbit,   params:{
+    speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
+    count:{v:5,  min:1,max:12,step:1,  label:'Points'},
+    persist:{v:0.88,min:0.5,max:0.99,step:0.01,label:'Rémanence'}}},
+  spiral:  {name:'Spirale', render:renderSpiral,   params:{
+    speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
+    arms: {v:4,  min:1,max:10,step:1,  label:'Bras'},
+    tight:{v:2,  min:0.3,max:6,step:0.1,label:'Serrage'}}},
+  star:    {name:'Étoile',  render:renderStar,     params:{
+    speed:{v:0.6,min:0,max:3,step:0.05,label:'Vitesse'},
+    rays: {v:8,  min:3,max:20,step:1,  label:'Rayons'},
+    sharp:{v:2,  min:0.5,max:6,step:0.1,label:'Netteté'}}},
+  stripes: {name:'Bandes',  render:renderStripes, params:{
+    speed:{v:1,  min:0,max:3,step:0.05,label:'Vitesse'},
+    thick:{v:5,  min:1,max:15,step:0.2,label:'Épaisseur'},
+    angle:{v:30, min:0,max:180,step:1,  label:'Angle'}}},
+  glitch:  {name:'Glitch',  render:renderGlitch,  params:{
+    speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
+    tear: {v:0.35,min:0,max:0.95,step:0.02,label:'Déchirure'},
+    chroma:{v:1, min:0,max:2,step:0.05,label:'Chroma'}}},
+  flow:    {name:'Flot',    render:renderFlow,    params:{
+    speed:{v:1,  min:0,max:3,step:0.05,label:'Vitesse'},
+    count:{v:80, min:10,max:200,step:1,label:'Particules'},
+    persist:{v:0.92,min:0.5,max:0.99,step:0.01,label:'Rémanence'}}},
+  life:    {name:'Vie',     render:renderLife,    params:{
+    speed:{v:0.6,min:0.05,max:3,step:0.05,label:'Vitesse'}}},
+  sweep:   {name:'Sweep',   render:renderSweep,   params:{
+    speed:{v:0.6,min:0.05,max:3,step:0.05,label:'Vitesse'},
+    persist:{v:0.85,min:0.3,max:0.99,step:0.01,label:'Rémanence'},
+    axis:{v:0,min:0,max:1,step:1,label:'Axe (0=H,1=V)'}}},
+  bars:    {name:'Bars',    render:renderBars,    params:{
+    speed:{v:0.5,min:0,max:3,step:0.05,label:'Vitesse'},
+    density:{v:0.55,min:0.1,max:1,step:0.02,label:'Densité'},
+    thick:{v:2,min:1,max:8,step:1,label:'Épaisseur'}}},
+  static:  {name:'Static',  render:renderStatic,  params:{
+    speed:{v:0.7,min:0.05,max:3,step:0.05,label:'Vitesse'},
+    density:{v:0.18,min:0.02,max:0.6,step:0.01,label:'Densité'},
+    block:{v:1,min:1,max:8,step:1,label:'Grain'}}},
+  lines:   {name:'Lines',   render:renderLines,   params:{
+    speed:{v:0.4,min:0,max:3,step:0.05,label:'Vitesse'},
+    density:{v:0.45,min:0.1,max:1,step:0.02,label:'Densité'},
+    thick:{v:1,min:1,max:8,step:1,label:'Épaisseur'}}},
+  sine:    {name:'Sine',    render:renderSine,    params:{
+    speed:{v:1.2,min:0,max:4,step:0.05,label:'Vitesse'},
+    freq:{v:0.25,min:0.05,max:1,step:0.01,label:'Fréquence'},
+    amp:{v:12,min:2,max:28,step:1,label:'Amplitude'},
+    persist:{v:0.9,min:0.3,max:0.99,step:0.01,label:'Rémanence'}}},
+  text:    {name:'Texte',   render:renderText,    params:{
+    text:{v:'ALVA NOTO',label:'Texte'},
+    speed:{v:12,min:2,max:60,step:1,label:'Vitesse (px/s)'},
+    scale:{v:2,min:1,max:5,step:1,label:'Taille'},
+    bg:{v:'',type:'bgcolor',label:'Fond'}}},
+  lissajous:{name:'Lissajous',render:renderLissajous,params:{
+    speed:{v:0.5,min:0.05,max:2,step:0.05,label:'Vitesse'},
+    freqA:{v:3,min:1,max:9,step:1,label:'Fréq A'},
+    freqB:{v:5,min:1,max:9,step:1,label:'Fréq B'},
+    phase:{v:0,min:0,max:6.28,step:0.05,label:'Phase'},
+    persist:{v:0.94,min:0.5,max:0.99,step:0.01,label:'Rémanence'}}},
+  hilbert: {name:'Hilbert', render:renderHilbert, params:{
+    speed:{v:0.8,min:0.05,max:3,step:0.05,label:'Vitesse'},
+    tail:{v:220,min:30,max:800,step:10,label:'Traîne'},
+    persist:{v:0.94,min:0.5,max:0.99,step:0.01,label:'Rémanence'}}},
+  rd:      {name:'Diffusion',render:renderRD,    params:{
+    feed:{v:0.055,min:0.01,max:0.08,step:0.001,label:'Feed'},
+    kill:{v:0.062,min:0.04,max:0.07,step:0.001,label:'Kill'},
+    iters:{v:8,min:1,max:20,step:1,label:'Itérations'}}},
+  ekg:     {name:'EKG',     render:renderEKG,     params:{
+    bpm:{v:60,min:30,max:180,step:1,label:'BPM'},
+    amp:{v:1,min:0.3,max:2,step:0.05,label:'Amplitude'},
+    persist:{v:0.92,min:0.5,max:0.99,step:0.01,label:'Rémanence'}}},
+  mire:    {name:'Mire',    render:renderMire,    params:{
+    speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
+    bands:{v:8,min:2,max:16,step:1,label:'Bandes'},
+    jitter:{v:0,min:0,max:1,step:0.02,label:'Décalage'}}},
+  timecode:{name:'Timecode',render:renderTimecode,params:{
+    bar:{v:1,type:'toggle',label:'Barre ms'}}},
+  clock:   {name:'Horloge', render:renderClock,   params:{
+    seconds:{v:1,type:'toggle',label:'Barre secondes'}}},
+  clock2:  {name:'Cadran',  render:renderClock2,  params:{
+    ticks:{v:1,type:'toggle',label:'Graduations'},
+    seconds:{v:1,type:'toggle',label:'Trotteuse'}}}
+};
+
+const ICONS = {
+  shuffle:  '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5h2.2l5.6 7h2.7"/><path d="M1.5 10.5h2.2l5.6-7h2.7"/><path d="M10.4 1.8l1.9 1.7-1.9 1.7"/><path d="M10.4 8.8l1.9 1.7-1.9 1.7"/></svg>',
+  wave:     '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.2 7h1.6M4.4 4.2v5.6M7 2.2v9.6M9.6 4.8v4.4M12.2 6.2v1.6"/></svg>',
+  mic:      '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="5" y="1.4" width="4" height="7" rx="2"/><path d="M2.8 6.6a4.2 4.2 0 0 0 8.4 0"/><path d="M7 10.8v1.8"/></svg>',
+  cam:      '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7.6" r="2.6"/><path d="M1.4 4.6h2.2l1-1.6h4.8l1 1.6h2.2v7.2H1.4z"/></svg>',
+  orb:      '<svg viewBox="0 0 14 14" fill="none"><rect x="1.2" y="1.2" width="11.6" height="11.6" rx="1.6" stroke="currentColor" stroke-width="1.1" opacity=".45"/><circle cx="7" cy="7" r="3.4" fill="currentColor"/></svg>',
+  draw:     '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12l1-3 6-6 2 2-6 6-3 1z"/><path d="M8.5 3.5l2 2"/></svg>',
+  aujourdhui: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="2" y="2" width="10" height="10" rx="1.5"/><circle cx="7" cy="7" r="2.2"/><path d="M7 2v1.5M7 10.5V12M2 7h1.5M10.5 7H12"/></svg>',
+  weather:  '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><path d="M5 1.2v1M5 8.8v.4M1.2 5h1M8 5h.4M2.4 2.4l.7.7M7 7l.5.5M7.5 2.4l-.7.7"/><path d="M6 10.5a2.3 2.3 0 0 1 .3-4.5 3 3 0 0 1 5.6 1.1 2 2 0 0 1-.4 3.4H6z" fill="currentColor" stroke="none" opacity=".5"/></svg>',
+  spectrum: '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="1.5" y="6" width="1.8" height="6" rx=".5"/><rect x="4.3" y="3" width="1.8" height="9" rx=".5"/><rect x="7.1" y="5" width="1.8" height="7" rx=".5"/><rect x="9.9" y="2" width="1.8" height="10" rx=".5"/></svg>',
+  pulse:    '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1" opacity=".4"/><circle cx="7" cy="7" r="2.6" stroke="currentColor" stroke-width="1.4"/></svg>',
+  checkers: '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="1.5" y="1.5" width="4.5" height="4.5"/><rect x="8" y="1.5" width="4.5" height="4.5" opacity=".35"/><rect x="1.5" y="8" width="4.5" height="4.5" opacity=".35"/><rect x="8" y="8" width="4.5" height="4.5"/></svg>',
+  spiral:   '<svg viewBox="0 0 14 14" fill="none"><path d="M7 7c0-1 .8-1.8 1.8-1.8S10.6 6 10.6 7 9.8 8.8 8.8 8.8c-1.5 0-2.8-1.3-2.8-2.8S7.3 3.2 8.8 3.2 12 5 12 7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  star:     '<svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.4 4.3H13l-3.6 2.6L10.8 12 7 9.4 3.2 12l1.4-4.1L1 5.3h4.6z"/></svg>',
+  kaleido:  '<svg viewBox="0 0 14 14" fill="none"><path d="M7 7 7 1.3M7 7 11.9 4.2M7 7 11.9 9.8M7 7 7 12.7M7 7 2.1 9.8M7 7 2.1 4.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="7" cy="7" r="1.4" fill="currentColor"/></svg>',
+  orbit:    '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="1.4" fill="currentColor"/><ellipse cx="7" cy="7" rx="6" ry="3" stroke="currentColor" stroke-width="1.1"/><circle cx="12.6" cy="7" r="1.1" fill="currentColor"/></svg>',
+  plasma:   '<svg viewBox="0 0 14 14" fill="none"><path d="M7 1v3M7 10v3M1 7h3M10 7h3M2.8 2.8l2 2M9.2 9.2l2 2M11.2 2.8l-2 2M4.8 9.2l-2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  truchet:  '<svg viewBox="0 0 14 14" fill="none"><path d="M1 1a6 6 0 0 1 6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M13 13a6 6 0 0 1-6-6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  moire:    '<svg viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="2" transform="rotate(0 7 7)" stroke="currentColor" stroke-width="1.1"/><rect x="4" y="4" width="6" height="6" rx="1.2" transform="rotate(20 7 7)" stroke="currentColor" stroke-width="1.1"/></svg>',
+  rings:    '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/><circle cx="7" cy="7" r="2.6" stroke="currentColor" stroke-width="1.2"/></svg>',
+  stripes:  '<svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h10M2 10h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  glitch:   '<svg viewBox="0 0 14 14" fill="none"><path d="M8 1 3 8h4l-1 5 6-8H8l1-4z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  flow:     '<svg viewBox="0 0 14 14" fill="none"><path d="M1 9c1.5 0 1.5-4 3-4s1.5 4 3 4 1.5-4 3-4 1.5 4 3 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  life:     '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="2" width="3" height="3" rx=".5"/><rect x="9" y="2" width="3" height="3" rx=".5"/><rect x="5.5" y="5.5" width="3" height="3" rx=".5"/><rect x="2" y="9" width="3" height="3" rx=".5"/><rect x="9" y="9" width="3" height="3" rx=".5"/></svg>',
+  checkers: '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="1" width="5.5" height="5.5"/><rect x="7.5" y="1" width="5.5" height="5.5" opacity=".35"/><rect x="1" y="7.5" width="5.5" height="5.5" opacity=".35"/><rect x="7.5" y="7.5" width="5.5" height="5.5"/></svg>',
+  spiral:   '<svg viewBox="0 0 14 14" fill="none"><path d="M7 7c0-1 .8-1.8 1.8-1.8s2 .9 2 2.3-1.1 2.7-2.8 2.7-3.5-1.5-3.5-3.5S6 2.5 8.5 2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  star:     '<svg viewBox="0 0 14 14" fill="none"><path d="M7 1v4.5M7 8.5V13M1 7h4.5M8.5 7H13M2.8 2.8l3.2 3.2M8 8l3.2 3.2M11.2 2.8 8 6M6 8l-3.2 3.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  sweep:    '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 7 11 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  bars:     '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="7" width="2" height="5" rx=".5"/><rect x="6" y="3" width="2" height="9" rx=".5"/><rect x="10" y="5" width="2" height="7" rx=".5"/></svg>',
+  static:   '<svg viewBox="0 0 14 14" fill="currentColor"><circle cx="3" cy="3" r=".9"/><circle cx="9" cy="2" r=".9"/><circle cx="6" cy="6" r=".9"/><circle cx="11" cy="7" r=".9"/><circle cx="2" cy="10" r=".9"/><circle cx="8" cy="11" r=".9"/><circle cx="12" cy="12" r=".9"/></svg>',
+  lines:    '<svg viewBox="0 0 14 14" fill="none"><path d="M2 12 6 2M6.5 12 10.5 2M11 12 13 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  sine:     '<svg viewBox="0 0 14 14" fill="none"><path d="M1 7c1.2-4.5 2.8-4.5 4-2s2.8 6.5 4 2 2-4.5 4-4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  lissajous:'<svg viewBox="0 0 14 14" fill="none"><path d="M2 7c0-3 2-5 3.5-3S7 11 8.5 9s3.5-5 3.5-2-2 5-3.5 3S7 3 5.5 5 2 10 2 7Z" stroke="currentColor" stroke-width="1.1"/></svg>',
+  hilbert:  '<svg viewBox="0 0 14 14" fill="none"><path d="M2 2v3h3V2M2 12v-3h3v3M12 2v3H9V2M12 12v-3H9v3M5 5v4M9 5v4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  rd:       '<svg viewBox="0 0 14 14" fill="none"><path d="M7 2c2.5 0 4 1.8 4 4 0 1.6-1 2.4-1 3.6 0 1.3 1.2 1.4 1.2 2.4H3.8c0-1 1.2-1.1 1.2-2.4 0-1.2-1-2-1-3.6 0-2.2 1.5-4 3-4Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>',
+  ekg:      '<svg viewBox="0 0 14 14" fill="none"><path d="M1 7h2.5l1-3 2 6 1.5-3H13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  mire:     '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 1v3M7 10v3M1 7h3M10 7h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  timecode: '<svg viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="6" rx="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M4 6.5h1M6.5 6.5h1M9 6.5h1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  clock:    '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  clock2:   '<svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.1"/><path d="M7 2v1.4M7 10.6V12M12 7h-1.4M3.4 7H2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+  text:     '<svg viewBox="0 0 14 14" fill="none"><text x="1" y="10.5" font-family="monospace" font-size="9" font-weight="700" fill="currentColor">Ab</text></svg>'
+};
+
+/* ====================== CATÉGORISATION DES ANIMATIONS ====================== */
+const ANIM_GROUPS = [
+  {cat: 'SON',         items: ['spectre','pulse','onde']},
+  {cat: 'CAMÉRA',      items: ['mirror','silhouette','trace']},
+  {cat: 'CRÉATIF',     items: ['draw']},
+  {cat: 'GÉOMÉTRIQUE', items: ['plasma','orb','truchet','moire','rings','stripes','glitch','flow','life','checkers','spiral','star','kaleido','orbit']},
+  {cat: 'MINIMAL',     items: ['sweep','bars','static','lines','sine']},
+  {cat: 'MATH',        items: ['lissajous','hilbert','rd','ekg']},
+  {cat: 'TEMPS',       items: ['aujourdhui','weather','mire','timecode','clock','clock2']},
+  {cat: 'TEXTE',       items: ['text']}
+];
+
+
+/* ====================== ORBE ======================
+   Disque chaud posé sur un dégradé lent et large. Les fréquences sont
+   proportionnelles à la largeur, pour un rendu identique en 128 et en 64. */
+function renderOrb(t, p, pal){
+  const sp = p.speed, size = p.size, glow = p.glow, warm = p.warm;
+  const fx = PANEL_W*0.40, fy = PANEL_H*0.47, fd = PANEL_W*0.62;
+  const r = PANEL_W*size*(1 + 0.04*Math.sin(t*0.8));
+  const edge = Math.max(0.8, PANEL_W*0.08*glow);
+
+  // le disque : ambre du logo, ou couleur de la palette si Ambre est baissé
+  const c0 = pal(0.06);
+  const cr = c0[0]*(1-warm) + 255*warm;
+  const cg = c0[1]*(1-warm) + 150*warm;
+  const cb = c0[2]*(1-warm) + 45*warm;
+
+  // champ de fond, puis étalement sur toute la palette
+  const field = new Float32Array(N);
+  let lo = Infinity, hi = -Infinity;
+  for (let y=0; y<PANEL_H; y++){
+    const b = Math.sin(y/fy - t*sp*0.8);
+    for (let x=0; x<PANEL_W; x++){
+      const v = (Math.sin(x/fx + t*sp) + b + Math.sin((x+y)/fd + t*sp*0.6)) / 3;
+      field[y*PANEL_W+x] = v;
+      if (v<lo) lo=v; if (v>hi) hi=v;
+    }
+  }
+  const span = (hi-lo > 1e-3) ? (hi-lo) : 1;
+
+  for (let y=0; y<PANEL_H; y++){
+    const dy = y-CY;
+    for (let x=0; x<PANEL_W; x++){
+      const k = y*PANEL_W+x, i = k*3;
+      const bg = pal((field[k]-lo)/span);
+      const dx = x-CX;
+      let m = (r - Math.sqrt(dx*dx+dy*dy))/edge;
+      m = m<0 ? 0 : (m>1 ? 1 : m);
+      pixels[i]   = bg[0]*(1-m) + cr*m;
+      pixels[i+1] = bg[1]*(1-m) + cg*m;
+      pixels[i+2] = bg[2]*(1-m) + cb*m;
+    }
+  }
+}
+
+/* ====================== APERÇU DISTANT ======================
+   Les animations camera se calculent sur le Pi, avec un capteur que le
+   telephone n'a pas. L'apercu va donc chercher l'image reelle du panneau,
+   64x64 en RGB brut, soit 12 ko par trame. */
+let remoteBusy = false, remoteLast = 0, remoteOk = false;
+
+function renderRemote(){
+  const now = performance.now();
+  if (!remoteBusy && now - remoteLast > 110){
+    remoteBusy = true; remoteLast = now;
+    fetch('/api/frame', {cache:'no-store'})
+      .then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(buf => {
+        const src = new Uint8Array(buf);
+        const side = Math.round(Math.sqrt(src.length/3));
+        if (side < 2) return;
+        // le panneau fait 64, l'apercu 128 : on double chaque pixel
+        for (let y=0; y<PANEL_H; y++){
+          const sy = Math.min(side-1, (y*side/PANEL_H)|0);
+          for (let x=0; x<PANEL_W; x++){
+            const sx = Math.min(side-1, (x*side/PANEL_W)|0);
+            const s3 = (sy*side+sx)*3, d3 = (y*PANEL_W+x)*3;
+            pixels[d3]=src[s3]; pixels[d3+1]=src[s3+1]; pixels[d3+2]=src[s3+2];
+          }
+        }
+        remoteOk = true;
+      })
+      .catch(()=>{ remoteOk = false; })
+      .finally(()=>{ remoteBusy = false; });
+  }
+  if (!remoteOk){
+    // pas de liaison : fond sourd, comme le Pi le ferait
+    for (let i=0;i<N;i++){ pixels[i*3]=20; pixels[i*3+1]=6; pixels[i*3+2]=30; }
+  }
+}
+
+/* ====================== MODE SONORE ======================
+   Le micro est sur le Pi. L'app lit le niveau capte via /api/state, s'en
+   sert pour animer son apercu et faire battre le bouton, qui devient ainsi
+   son propre temoin de captation. */
+let soundOn = false, soundSens = 0.6, soundLevel = 0;
+
+function setSound(on){
+  soundOn = on;
+  const b = document.getElementById('soundBtn');
+  if (b && !on) b.style.transform = 'scale(1)';
+  syncModeTabs();
+  buildParams();
+  pushState();
+}
+// battement de coeur : vérifie la présence du panneau toutes les 4 s.
+// Utile en transport : quand on change de réseau, dès que le panneau
+// répond de nouveau, la connexion se rétablit sans rien faire.
+setInterval(()=>{
+  fetch('/api/state', { cache:'no-store' })
+    .then(r => { setLedStatus(r.ok); return r.ok ? r.json() : null; })
+    .then(sn => {
+      if (!sn) return;
+      // reflète l'humeur d'ambiance si elle a changé côté Pi
+      if (typeof sn.mood_on === 'boolean' && sn.mood_on !== moodOn){
+        moodOn = sn.mood_on;
+        const sw = document.getElementById('moodSwitch');
+        if (sw) sw.classList.toggle('on', moodOn);
+      }
+    })
+    .catch(()=> setLedStatus(false));
+}, 4000);
+
+setInterval(()=>{
+  if (!soundOn) return;
+  fetch('/api/state').then(r=>r.json()).then(s=>{
+    soundLevel = (typeof s.sound_level === 'number') ? s.sound_level : 0;
+    const b = document.getElementById('soundBtn');
+    if (b) b.style.transform = 'scale('+(1 + soundLevel*0.18).toFixed(3)+')';
+  }).catch(()=>{ soundLevel = 0; });
+}, 260);
+
+/* ====================== MODE ALÉATOIRE ======================
+   Ce n'est pas une animation mais un mode : le Pi choisit lui-même l'animation
+   et la palette à intervalle régulier. L'app se contente de suivre, pour
+   afficher exactement ce qui est au mur. */
+let shuffleOn = false, shuffleLocal = 0;
+let dayOn = false;
+let moodOn = false;
+const SHUFFLE_SEC = 30;
+
+// aligne l'aperçu, la chip active et la boule active sur un choix donné
+function shuffleApply(anim, pal){
+  if (anim && ANIM[anim] && anim !== currentAnim){
+    fadeTransition();
+    currentAnim = anim;
+    document.querySelectorAll('.anim-cell').forEach(c =>
+      c.classList.toggle('on', c.dataset.id === anim));
+    syncAnimBar();
+    buildParams();
+  }
+  if (pal && PAL[pal] && pal !== palette){
+    palette = pal;
+    document.querySelectorAll('.pal-cell').forEach(c =>
+      c.classList.toggle('on', c.dataset.pal === pal));
+    syncPalChip();
+  }
+}
+
+// demande au Pi ce qu'il joue ; hors ligne, l'aperçu tire lui-même
+function shuffleSync(){
+  fetch('/api/state').then(r => r.json()).then(s => {
+    shuffleApply(s.anim, s.palette);
+    if (dayOn && typeof s.bri === 'number'){
+      masterBri = s.bri;
+      const pct = Math.round(s.bri/255*100);
+      const bl = document.getElementById('briLabel'); if (bl) bl.textContent = pct+'%';
+    }
+    shuffleLocal = 0;
+  }).catch(()=>{
+    if (Date.now() - shuffleLocal > SHUFFLE_SEC*1000){
+      const pool = [...PANEL_ANIMS].filter(k => ANIM[k] && k !== 'photo');
+      const pk = Object.keys(PAL);
+      shuffleApply(pool[Math.floor(Math.random()*pool.length)],
+                   pk[Math.floor(Math.random()*pk.length)]);
+      shuffleLocal = Date.now();
+    }
+  });
+}
+setInterval(()=>{ if (shuffleOn || dayOn) shuffleSync(); }, 2000);
+
+// toute sélection manuelle reprend la main sur le mode aléatoire
+function stopShuffle(){
+  if (!shuffleOn && !dayOn) return;
+  shuffleOn = false;
+  dayOn = false;
+  syncModeTabs();
+}
+
+// ─ ONGLETS DE MODE : Manuel, Aléatoire, Son — un seul actif à la fois ─
+let _animBeforeSound = null;
+function setMode(mode){
+  const wantShuffle = (mode === 'shuffle');
+  const wantSound   = (mode === 'sound');
+  const wantDay     = (mode === 'day');
+
+  if (wantShuffle !== shuffleOn){
+    shuffleOn = wantShuffle;
+    if (shuffleOn) shuffleSync();
+  }
+  if (wantDay !== dayOn){
+    dayOn = wantDay;
+    if (dayOn) shuffleSync();   // la journée suit le Pi, comme l'aléatoire
+  }
+  if (wantSound !== soundOn){
+    soundOn = wantSound;
+    if (soundOn){
+      // on montre tout de suite une animation qui réagit au son
+      const SND = ['spectre','pulse','onde'];
+      if (!SND.includes(currentAnim)){
+        _animBeforeSound = currentAnim;
+        currentAnim = 'spectre';
+        syncAnimBar();
+      }
+    } else {
+      const sb = document.getElementById('soundBtn');
+      if (sb) sb.style.transform = 'scale(1)';
+      // on revient à l'animation d'avant si on n'a pas changé entre-temps
+      if (_animBeforeSound && ['spectre','pulse','onde'].includes(currentAnim)){
+        currentAnim = _animBeforeSound;
+        syncAnimBar();
+      }
+      _animBeforeSound = null;
+    }
+    buildParams();
+  }
+  syncModeTabs();
+  pushState();
+  requestAnimationFrame(syncAnimBar);
+}
+
+function syncModeTabs(){
+  // seuls Aléatoire et Journée ont une icône dans le dock ; leur cercle
+  // se remplit quand le mode est actif. Manuel = aucun des deux.
+  const shf = document.getElementById('shuffleBtn');
+  const dy  = document.getElementById('dayBtn');
+  if (shf) shf.classList.toggle('on', shuffleOn);
+  if (dy)  dy.classList.toggle('on', dayOn);
+}
+
+(function(){
+  const shf = document.getElementById('shuffleBtn');
+  if (shf) shf.addEventListener('click', ()=> setMode(shuffleOn ? 'manual' : 'shuffle'));
+  const dy = document.getElementById('dayBtn');
+  if (dy) dy.addEventListener('click', ()=> setMode(dayOn ? 'manual' : 'day'));
+})();
+
+/* ====================== DESSIN AU DOIGT ====================== */
+const DRAW_W = 64, DRAW_H = 64;
+const draw = { buf: new Uint8ClampedArray(DRAW_W*DRAW_H*3), has:false };
+function renderDraw(t, p, pal){
+  // le dessin vit en 64x64 ; on l'agrandit vers l'aperçu (128) au plus proche
+  for (let y=0;y<PANEL_H;y++){
+    const sy = (y*DRAW_H/PANEL_H)|0;
+    for (let x=0;x<PANEL_W;x++){
+      const sx = (x*DRAW_W/PANEL_W)|0;
+      const si=(sy*DRAW_W+sx)*3, di=(y*PANEL_W+x)*3;
+      pixels[di]=draw.buf[si]; pixels[di+1]=draw.buf[si+1]; pixels[di+2]=draw.buf[si+2];
+    }
+  }
+}
+function drawClear(){ draw.buf.fill(0); draw.has=false; }
+// peint un disque dans le buffer de dessin, à la couleur d'accent de la palette
+// La couleur du pinceau : on cherche dans la palette le ton le plus vif
+// (le plus coloré, ni trop sombre ni délavé) pour que le trait soit franc.
+function drawColor(){
+  const P = PAL[palette]; if (!P || !P.fn) return [240,240,240];
+  let best=[240,240,240], bestScore=-1;
+  for (let v=0.35; v<=0.9; v+=0.05){
+    const c = P.fn(v);
+    const mx=Math.max(c[0],c[1],c[2]), mn=Math.min(c[0],c[1],c[2]);
+    const sat = mx>0 ? (mx-mn)/mx : 0;          // saturation
+    const lum = (mx+mn)/2/255;                   // clarté
+    // on favorise une couleur saturée et de clarté moyenne (bien visible)
+    const score = sat*1.4 + (1-Math.abs(lum-0.55))*0.6;
+    if (score>bestScore){ bestScore=score; best=c; }
+  }
+  return best;
+}
+
+let drawInk = null;   // couleur de pinceau choisie ; null = auto (teinte de la palette)
+
+// Construit la rangée de pastilles à partir de la palette courante.
+// Toucher une pastille fixe la couleur du pinceau. Le noir sert de gomme.
+function buildSwatches(){
+  const host = document.getElementById('drawSwatches');
+  if (!host) return;
+  host.innerHTML = '';
+  const P = PAL[palette];
+  const cols = [];
+  if (P && P.fn){
+    for (const v of [0.2, 0.4, 0.55, 0.7, 0.85]){
+      const c = P.fn(v); cols.push(c);
+    }
+  }
+  cols.push([245,245,245]);   // blanc
+  cols.push([0,0,0]);         // noir = gomme
+  cols.forEach((c, i)=>{
+    const sw = document.createElement('div');
+    sw.className = 'draw-sw';
+    sw.style.background = 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+    // pastille active = celle qui correspond à la couleur choisie (ou la 3e par défaut)
+    const isSel = drawInk ? (drawInk[0]===c[0]&&drawInk[1]===c[1]&&drawInk[2]===c[2]) : (i===2);
+    if (isSel) sw.classList.add('on');
+    sw.addEventListener('click', ()=>{
+      drawInk = c.slice();
+      [...host.children].forEach(x=>x.classList.remove('on'));
+      sw.classList.add('on');
+    });
+    host.appendChild(sw);
+  });
+}
+
+function drawPaint(px, py, radius){
+  const c = drawInk || drawColor(); // couleur choisie, sinon teinte franche de la palette
+  const r = radius|0;
+  for (let dy=-r;dy<=r;dy++) for (let dx=-r;dx<=r;dx++){
+    if (dx*dx+dy*dy>r*r) continue;
+    const x=px+dx, y=py+dy;
+    if (x<0||x>=DRAW_W||y<0||y>=DRAW_H) continue;
+    const i=(y*DRAW_W+x)*3; draw.buf[i]=c[0]; draw.buf[i+1]=c[1]; draw.buf[i+2]=c[2];
+  }
+  draw.has=true;
+}
+
+/* ====================== MÉTÉO (données réelles Bruxelles, Open-Meteo) ====================== */
+const weather = { code: null, temp: null, lastFetch: 0, loading: false };
+function weatherFetch(){
+  // rafraîchit au plus toutes les 15 min
+  const now = Date.now();
+  if (weather.loading || (weather.lastFetch && now - weather.lastFetch < 15*60*1000)) return;
+  weather.loading = true;
+  fetch('https://api.open-meteo.com/v1/forecast?latitude=50.85&longitude=4.35&current_weather=true')
+    .then(r=>r.json())
+    .then(d=>{
+      if (d && d.current_weather){
+        weather.code = d.current_weather.weathercode;
+        weather.temp = Math.round(d.current_weather.temperature);
+        weather.lastFetch = Date.now();
+      }
+      weather.loading = false;
+    })
+    .catch(()=>{ weather.loading = false; });
+}
+// famille de temps d'après le weathercode WMO
+function weatherKind(code){
+  if (code==null) return 'load';
+  if (code===0) return 'clear';
+  if (code<=3) return 'cloud';
+  if (code>=45 && code<=48) return 'fog';
+  if (code>=51 && code<=67) return 'rain';
+  if (code>=71 && code<=77) return 'snow';
+  if (code>=80 && code<=82) return 'rain';
+  if (code>=95) return 'storm';
+  return 'cloud';
+}
+function fillCircle(cx,cy,r,rr,gg,bb){
+  for (let y=Math.max(0,cy-r|0); y<=Math.min(PANEL_H-1,cy+r); y++)
+    for (let x=Math.max(0,cx-r|0); x<=Math.min(PANEL_W-1,cx+r); x++){
+      if ((x-cx)*(x-cx)+(y-cy)*(y-cy) <= r*r){ const i=(y*PANEL_W+x)*3; pixels[i]=rr;pixels[i+1]=gg;pixels[i+2]=bb; }
+    }
+}
+// nuage net : base plate + 3 bosses arrondies, contour homogène
+function weatherCloud(cx, cy, s, top, base){
+  const R = PANEL_W*0.09*s;
+  fillCircle(cx - R*1.1, cy + R*0.5, R*0.85, base[0],base[1],base[2]);
+  fillCircle(cx + R*1.1, cy + R*0.5, R*0.9,  base[0],base[1],base[2]);
+  fillCircle(cx - R*0.3, cy + R*0.2, R*1.0,  top[0],top[1],top[2]);
+  fillCircle(cx + R*0.5, cy,         R*0.95, top[0],top[1],top[2]);
+  // base plate pour asseoir le nuage
+  const y0=Math.round(cy+R*0.5), y1=Math.round(cy+R*1.1);
+  for (let y=y0;y<=y1 && y<PANEL_H;y++) for (let x=Math.round(cx-R*1.6);x<=cx+R*1.6;x++){
+    if(x<0||x>=PANEL_W)continue; const i=(y*PANEL_W+x)*3; pixels[i]=base[0];pixels[i+1]=base[1];pixels[i+2]=base[2];
+  }
+}
+
+function renderWeather(t, p, pal){
+  weatherFetch();
+  clearBuf();
+  const kind = weatherKind(weather.code);
+  const hi = pal(1), lo = pal(0.6), mid = pal(0.4);
+  const scx = PANEL_W*0.5, scy = PANEL_H*0.5;
+
+  if (kind==='clear'){
+    // soleil : disque net + 8 rayons courts réguliers
+    const R = PANEL_W*0.11;
+    const pulse = 1 + 0.08*Math.sin(t*2);
+    fillCircle(scx, scy, R*pulse, hi[0],hi[1],hi[2]);
+    for (let k=0;k<8;k++){
+      const a = k*Math.PI/4 + t*0.4;
+      const r1 = R*1.5, r2 = R*2.1 + Math.sin(t*3+k);
+      drawLine(Math.round(scx+Math.cos(a)*r1), Math.round(scy+Math.sin(a)*r1),
+               Math.round(scx+Math.cos(a)*r2), Math.round(scy+Math.sin(a)*r2), hi[0],hi[1],hi[2]);
+    }
+  } else if (kind==='cloud' || kind==='fog'){
+    weatherCloud(scx, scy-2, 1, hi, lo);
+    if (kind==='fog'){
+      for (let k=0;k<3;k++){ const y=Math.round(scy+13+k*4); const off=(t*8+k*10);
+        for (let x=6;x<PANEL_W-6;x++){ const v=0.35+0.35*Math.sin((x+off)*0.25); const c=pal(v);
+          const i=(y*PANEL_W+x)*3; pixels[i]=c[0];pixels[i+1]=c[1];pixels[i+2]=c[2]; } }
+    }
+  } else if (kind==='rain' || kind==='storm'){
+    weatherCloud(scx, scy-4, 1, mid, lo);
+    // gouttes en biais, régulières
+    for (let k=0;k<6;k++){
+      const bx = Math.round(scx - 16 + k*6);
+      const phase = (t*34 + k*20) % 26;
+      const y = Math.round(scy+8 + phase);
+      for (let dy=0;dy<3;dy++){ const yy=y+dy, xx=bx+(dy>>1); if(yy<PANEL_H-2 && xx>=0 && xx<PANEL_W){ const i=(yy*PANEL_W+xx)*3; pixels[i]=hi[0];pixels[i+1]=hi[1];pixels[i+2]=hi[2]; } }
+    }
+    if (kind==='storm'){
+      // éclair jaune en zigzag, clignotant
+      if (Math.sin(t*8)>0.4){
+        const zx=Math.round(scx), zy=Math.round(scy+6);
+        drawLine(zx+2,zy, zx-2,zy+7, 255,238,120);
+        drawLine(zx-2,zy+7, zx+3,zy+7, 255,238,120);
+        drawLine(zx+3,zy+7, zx-1,zy+16, 255,238,120);
+      }
+    }
+  } else if (kind==='snow'){
+    weatherCloud(scx, scy-4, 1, hi, lo);
+    // flocons : petits + qui descendent
+    for (let k=0;k<6;k++){
+      const bx = Math.round(scx - 15 + k*6 + Math.sin(t*1.5+k)*1.5);
+      const y = Math.round(scy+9 + (t*14 + k*15) % 24);
+      if(y<PANEL_H-1){ const i=(y*PANEL_W+bx)*3;
+        for (const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[0,-1]]){ const xx=bx+dx, yy=y+dy;
+          if(xx>=0&&xx<PANEL_W&&yy>=0&&yy<PANEL_H){ const j=(yy*PANEL_W+xx)*3; pixels[j]=hi[0];pixels[j+1]=hi[1];pixels[j+2]=hi[2]; } } }
+    }
+  } else {
+    const v = 0.4+0.4*Math.sin(t*3); const c=pal(v);
+    fillCircle(scx, scy, PANEL_W*0.05, c[0],c[1],c[2]);
+  }
+
+  // heure en haut, centrée
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const htxt = hh + ':' + mm;
+  const hscale = 2;
+  const hw = htxt.length*(5+1)*hscale - hscale;
+  const hc = pal(0.9);
+  drawText(htxt, Math.round(CX - hw/2), 4, hscale, hc[0], hc[1], hc[2]);
+
+  // température en bas, centrée
+  if (weather.temp!=null){
+    const txt = weather.temp + 'C';
+    const scale = 2;
+    const w = txt.length*(5+1)*scale - scale;
+    const c = pal(0.95);
+    drawText(txt, Math.round(CX - w/2), PANEL_H-16, scale, c[0], c[1], c[2]);
+  }
+}
+
+/* ====================== PHOTO ====================== */
+let photoPixels = null; // Uint8ClampedArray N*3, ou null si aucune photo
+
+function renderPhoto(t, p, pal){
+  if (!photoPixels){ clearBuf(); return; }
+  // couleurs déjà finales : pas de palette appliquée sur une vraie photo
+  for (let i=0; i<N; i++){
+    pixels[i*3]   = photoPixels[i*3];
+    pixels[i*3+1] = photoPixels[i*3+1];
+    pixels[i*3+2] = photoPixels[i*3+2];
+  }
+}
+
+/* ====================== SPECTRE AUDIO ====================== */
+function renderSpectrum(t, p, pal){
+  clearBuf();
+  const bars = Math.max(4, (p.bars|0));
+  const bw = PANEL_W / bars;
+  const an = audio.analyser, f = audio.freq;
+  for (let bi=0; bi<bars; bi++){
+    let amp;
+    if (audio.on && an){
+      const lo = Math.floor((bi/bars)*f.length*0.6);
+      const hi = Math.floor(((bi+1)/bars)*f.length*0.6);
+      let s=0; for (let i=lo;i<hi;i++) s+=f[i]; amp=(s/Math.max(1,hi-lo))/255;
+    } else {
+      amp = 0.15 + 0.12*Math.sin(t*2 + bi*0.6);   // démo sans micro
+    }
+    const h = Math.round(amp * PANEL_H * (0.2 + p.gain*1.3));
+    for (let y=0; y<h && y<PANEL_H; y++){
+      const v = 0.3 + 0.7*(y/PANEL_H);
+      const [r,g,b] = pal(v);
+      for (let x=Math.floor(bi*bw); x<Math.floor((bi+1)*bw); x++){
+        const idx = ((PANEL_H-1-y)*PANEL_W + x)*3;
+        pixels[idx]=r; pixels[idx+1]=g; pixels[idx+2]=b;
+      }
+    }
+  }
+}
+function renderPulse(t, p, pal){
+  const drive = audio.on ? audio.bass : (0.4+0.3*Math.sin(t*1.5));
+  const baseR = PANEL_W*0.12, maxR = PANEL_W*0.46;
+  const R = baseR + drive*(maxR-baseR)*(0.5+p.gain);
+  const thick = 2 + p.gain*6 + drive*6;
+  for (let y=0;y<PANEL_H;y++) for (let x=0;x<PANEL_W;x++){
+    const d = Math.hypot(x-CX,y-CY);
+    const edge = Math.abs(d-R);
+    let v = edge < thick ? (1 - edge/thick) : Math.max(0, 0.12 - d/PANEL_W*0.12);
+    const [r,g,b] = pal(v * (0.6+drive*0.8));
+    const idx=(y*PANEL_W+x)*3;
+    pixels[idx]=r; pixels[idx+1]=g; pixels[idx+2]=b;
+  }
+}
+
+/* ============ ETAT ============ */
+let currentAnim = 'plasma';
+let palette = 'airdraw';
+let running = true;
+let masterBri = 178;
+
+/* ============ AUDIO : micro iPhone, analyse 3 bandes ============ */
+const audio = {
+  on: false,          // interrupteur "rendre l'anim réactive"
+  ctx: null, analyser: null, freq: null, stream: null,
+  bass: 0, mid: 0, treble: 0, level: 0,   // niveaux lissés 0..1
+};
+async function audioStart(){
+  if (audio.ctx) { audio.on = true; return true; }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation:false, noiseSuppression:false, autoGainControl:false
+    }});
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const actx = new AC();
+    const src = actx.createMediaStreamSource(stream);
+    const an = actx.createAnalyser();
+    an.fftSize = 512; an.smoothingTimeConstant = 0.75;
+    src.connect(an);
+    audio.ctx = actx; audio.analyser = an; audio.stream = stream;
+    audio.freq = new Uint8Array(an.frequencyBinCount);
+    audio.on = true;
+    return true;
+  }catch(e){
+    audio.on = false;
+    return false;   // permission refusée ou HTTP non sécurisé
+  }
+}
+function audioStop(){
+  audio.on = false;
+  if (audio.stream){ audio.stream.getTracks().forEach(t=>t.stop()); audio.stream = null; }
+  if (audio.ctx){ audio.ctx.close(); audio.ctx = null; audio.analyser = null; }
+  audio.bass = audio.mid = audio.treble = audio.level = 0;
+}
+function audioSample(){
+  if (!audio.on || !audio.analyser) return;
+  const f = audio.freq, an = audio.analyser;
+  an.getByteFrequencyData(f);
+  const n = f.length;                       // 256 bins ~ 0..(sampleRate/2)
+  const bassEnd = Math.floor(n*0.08);       // ~graves
+  const midEnd  = Math.floor(n*0.35);       // ~medium
+  let b=0,m=0,tr=0,all=0;
+  for (let i=0;i<n;i++){
+    const v=f[i]/255; all+=v;
+    if (i<bassEnd) b+=v; else if (i<midEnd) m+=v; else tr+=v;
+  }
+  b/=bassEnd; m/=(midEnd-bassEnd); tr/=(n-midEnd); all/=n;
+  // lissage doux (attaque rapide, chute lente)
+  const smooth=(cur,tgt)=> tgt>cur ? cur+(tgt-cur)*0.6 : cur+(tgt-cur)*0.15;
+  audio.bass=smooth(audio.bass,b); audio.mid=smooth(audio.mid,m);
+  audio.treble=smooth(audio.treble,tr); audio.level=smooth(audio.level,all);
+}
+
+/* ============ CANVAS (supersampling pour rendu lisse) ============ */
+const cv = document.getElementById('bgCanvas');
+const ctx = cv.getContext('2d');
+ctx.imageSmoothingEnabled = true;
+ctx.imageSmoothingQuality = 'high';
+// canvas source basse résolution (calcul du panneau)
+const srcCv = document.createElement('canvas');
+srcCv.width = PANEL_W; srcCv.height = PANEL_H;
+const srcCtx = srcCv.getContext('2d');
+const imgData = srcCtx.createImageData(PANEL_W, PANEL_H);
+
+function blitToCanvas(){
+  const d = imgData.data;
+  const briK = masterBri / 255;
+  for (let i=0;i<N;i++){
+    d[i*4]   = pixels[i*3]   * briK;
+    d[i*4+1] = pixels[i*3+1] * briK;
+    d[i*4+2] = pixels[i*3+2] * briK;
+    d[i*4+3] = 255;
+  }
+  srcCtx.putImageData(imgData, 0, 0);
+  // upscale interpolé vers le canvas visible haute résolution
+  ctx.drawImage(srcCv, 0, 0, PANEL_W, PANEL_H, 0, 0, cv.width, cv.height);
+}
+
+// fondu doux du canvas lors d'un changement d'animation (effet "produit fini")
+function fadeTransition(){
+  cv.style.transition = 'opacity .5s ease';
+  cv.style.opacity = '0';
+  setTimeout(()=>{ cv.style.opacity = '1'; }, 260);
+}
+
+let t0 = performance.now();
+let tAccum = 0, lastNow = t0;
+let poweredOn = true;
+
+/* ============ PONT VERS LE PI : envoi de l'état au serveur ============ */
+// animations connues du moteur Python (engine.py). Les autres (draw, photo)
+// passent par /api/image ; on n'envoie pas leur nom en 'anim' pour éviter un rejet.
+const PANEL_ANIMS = new Set(['aujourdhui','spectre','pulse','onde','mirror','silhouette','trace','orb','plasma','truchet','moire','rings','stripes','glitch','flow','life',
+  'checkers','spiral','star','kaleido','orbit','sweep','bars','static','lines','sine',
+  'lissajous','hilbert','rd','ekg','mire','timecode','clock','clock2','text','weather','photo']);
+let pushTimer = null;
+function pushState(extra){
+  // construit l'état à transmettre
+  const body = Object.assign({
+    on: poweredOn,
+    paused: !running,
+    palette: palette,
+    bri: masterBri,
+    params: currentParams()
+  }, extra || {});
+  // n'envoie 'anim' que si le moteur du Pi la connaît
+  if (PANEL_ANIMS.has(currentAnim)) body.anim = currentAnim;
+  body.sound = soundOn;
+  body.sound_sens = soundSens;
+  // mode aléatoire : c'est le Pi qui choisit, on lui passe seulement l'intervalle
+  body.shuffle = shuffleOn;
+  body.day = dayOn;
+  body.mood_on = moodOn;
+  if (shuffleOn){
+    body.shuffle_sec = SHUFFLE_SEC;
+    delete body.anim;
+    delete body.params;
+  }
+  // en mode journée aussi, c'est le Pi qui choisit anim, palette et luminosité :
+  // on ne lui impose rien, sinon on écrase son choix à chaque envoi
+  if (dayOn){
+    delete body.anim;
+    delete body.params;
+    delete body.palette;
+    delete body.bri;
+  }
+  fetch('/api/state', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(r => setLedStatus(r.ok)).catch(()=> setLedStatus(false));
+}
+// regroupe les valeurs de paramètres de l'animation courante
+function currentParams(){
+  const a = ANIM[currentAnim], p = {};
+  if (a && a.params) for (const k in a.params) p[k] = a.params[k].v;
+  return p;
+}
+// évite de spammer le serveur quand on bouge un curseur en continu
+function pushStateDebounced(extra){
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = setTimeout(()=> pushState(extra), 120);
+}
+
+function loop(now){
+  const dt = (now - lastNow)/1000; lastNow = now;
+  if (running && poweredOn){
+    const a = ANIM[currentAnim];
+    const p = {};
+    for (const k in a.params) p[k] = a.params[k].v;
+    tAccum += dt;
+    a.render(tAccum, p, PAL[palette].fn);
+    blitToCanvas();
+  }
+  renderPalCells(now, tAccum);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ============ CAPTURE TACTILE POUR LE DESSIN ============ */
+(function(){
+  let painting = false, lastX=null, lastY=null;
+  function canvasToPanel(clientX, clientY){
+    const rect = cv.getBoundingClientRect();
+    // le canvas remplit exactement son cadre carré
+    const nx = (clientX - rect.left) / rect.width;
+    const ny = (clientY - rect.top) / rect.height;
+    if (nx<0||nx>1||ny<0||ny>1) return null;
+    return { x: Math.floor(nx*DRAW_W), y: Math.floor(ny*DRAW_H) };
+  }
+  function paintAt(clientX, clientY){
+    if (currentAnim!=='draw') return;
+    const pt = canvasToPanel(clientX, clientY);
+    if (!pt) return;
+    const brush = ANIM.draw.params.brush.v;
+    // interpole entre le dernier point et le nouveau pour un trait continu
+    if (lastX!=null){
+      const steps = Math.max(1, Math.hypot(pt.x-lastX, pt.y-lastY)|0);
+      for (let s=0;s<=steps;s++){
+        const ix = Math.round(lastX + (pt.x-lastX)*s/steps);
+        const iy = Math.round(lastY + (pt.y-lastY)*s/steps);
+        drawPaint(ix, iy, brush);
+      }
+    } else {
+      drawPaint(pt.x, pt.y, brush);
+    }
+    lastX=pt.x; lastY=pt.y;
+  }
+  function down(e){ if(currentAnim!=='draw')return; painting=true; lastX=lastY=null;
+    paintAt(e.clientX,e.clientY); e.preventDefault(); }
+  function move(e){ if(!painting)return; paintAt(e.clientX,e.clientY); e.preventDefault(); }
+  function up(){ painting=false; lastX=lastY=null; }
+  cv.addEventListener('pointerdown', down);
+  cv.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+})();
+
+/* ============ UI : ANIMATIONS ============ */
+function buildAnimCarousel(){
+  const grid = document.getElementById('animGrid');
+  grid.innerHTML = '';
+
+  // Photo reste a part : elle ouvre le selecteur de fichier au lieu
+  // de lancer une animation calculee.
+  const catPhoto = document.createElement('div');
+  catPhoto.className = 'anim-cat';
+  catPhoto.textContent = 'Image';
+  grid.appendChild(catPhoto);
+  grid.appendChild(makeAnimCell('photo', 'Photo',
+    '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2.3"/><path d="M5 3l.8-1.3h2.4L9 3"/></svg>',
+    ()=> document.getElementById('photoInput').click()));
+
+  for (const grp of ANIM_GROUPS){
+    const cat = document.createElement('div');
+    cat.className = 'anim-cat';
+    cat.textContent = grp.cat.charAt(0) + grp.cat.slice(1).toLowerCase();
+    grid.appendChild(cat);
+    for (const id of grp.items){
+      if (!ANIM[id]) continue;
+      grid.appendChild(makeAnimCell(id, ANIM[id].name, ICONS[ANIM[id].icon] || ICONS[id] || '',
+        ()=> chooseAnim(id)));
+    }
+  }
+  syncAnimBar();
+}
+
+function makeAnimCell(id, name, icon, onPick){
+  const c = document.createElement('button');
+  c.type = 'button';
+  c.className = 'anim-cell' + (id===currentAnim ? ' on' : '');
+  c.dataset.id = id;
+  c.innerHTML = '<span class="ic">'+icon+'</span><b>'+name+'</b>';
+  c.onclick = onPick;
+  return c;
+}
+
+function chooseAnim(id){
+  if (currentAnim !== id) fadeTransition();
+  currentAnim = id;
+  stopShuffle();
+  // les animations sonores allument d'elles-mêmes la réactivité au micro,
+  // puisque « Son » n'est plus un mode séparé mais vit dans la liste
+  const SND = ['spectre','pulse','onde'];
+  soundOn = SND.includes(id);
+  document.querySelectorAll('.anim-cell').forEach(c =>
+    c.classList.toggle('on', c.dataset.id === id));
+  syncAnimBar();
+  buildParams();
+  pushState();
+  setTimeout(()=>closeModal('animOverlay'), 140);
+}
+
+/* la barre reprend le nom, l'icone et la famille de l'animation en cours */
+function dayMoment(){
+  const h = new Date().getHours();
+  if (h < 6)  return 'Nuit';
+  if (h < 9)  return 'Aube';
+  if (h < 12) return 'Matin';
+  if (h < 17) return 'Midi';
+  if (h < 21) return 'Soir';
+  return 'Nuit';
+}
+function syncAnimBar(){
+  const a = ANIM[currentAnim]; if (!a) return;
+  const ic = document.getElementById('animBarIcon');
+  const nm = document.getElementById('animBarName');
+  const ct = document.getElementById('animBarCat');
+  if (ic) ic.innerHTML = ICONS[a.icon] || ICONS[currentAnim] || '';
+  if (nm) nm.textContent = a.name;
+  if (ct){
+    let label;
+    if (dayOn)          label = 'Journée · ' + dayMoment();
+    else if (shuffleOn) label = 'Aléatoire';
+    else {
+      const g = ANIM_GROUPS.find(x => x.items.includes(currentAnim));
+      label = g ? g.cat.charAt(0)+g.cat.slice(1).toLowerCase() : '';
+    }
+    ct.textContent = label;
+  }
+  const tag = document.getElementById('screenTag');
+  if (tag){
+    const pn = (PAL[palette] && PAL[palette].name) || '';
+    tag.textContent = dayOn ? (dayMoment() + ' — ' + a.name)
+                            : (a.name + (pn ? ' — ' + pn : ''));
+  }
+}
+
+  // chip PHOTO en tête, hors catégories : ouvre le sélecteur de fichier
+
+// upload photo : recadrage centre "cover", stockage RGB, bascule en mode Photo
+document.getElementById('photoInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = ()=>{
+    URL.revokeObjectURL(url);
+    const off = document.createElement('canvas');
+    off.width = PANEL_W; off.height = PANEL_H;
+    const octx = off.getContext('2d');
+    const scale = Math.max(PANEL_W / img.width, PANEL_H / img.height);
+    const sw = PANEL_W / scale, sh = PANEL_H / scale;
+    const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+    octx.imageSmoothingEnabled = true;
+    octx.drawImage(img, sx, sy, sw, sh, 0, 0, PANEL_W, PANEL_H);
+    const data = octx.getImageData(0, 0, PANEL_W, PANEL_H).data;
+    const buf = new Uint8ClampedArray(N * 3);
+    for (let i=0; i<N; i++){
+      buf[i*3]   = data[i*4];
+      buf[i*3+1] = data[i*4+1];
+      buf[i*3+2] = data[i*4+2];
+    }
+    photoPixels = buf;
+    currentAnim = 'photo';
+    buildAnimCarousel();
+    buildParams();
+
+    // ---- envoi au panneau : le vrai panneau est 64x64, on regénère à cette taille exacte ----
+    const PW = 64, PH = 64;
+    const poff = document.createElement('canvas');
+    poff.width = PW; poff.height = PH;
+    const poctx = poff.getContext('2d');
+    const pScale = Math.max(PW / img.width, PH / img.height);
+    const psw = PW / pScale, psh = PH / pScale;
+    const psx = (img.width - psw) / 2, psy = (img.height - psh) / 2;
+    poctx.imageSmoothingEnabled = true;
+    poctx.drawImage(img, psx, psy, psw, psh, 0, 0, PW, PH);
+    const pdata = poctx.getImageData(0, 0, PW, PH).data;
+    const panelBuf = new Uint8Array(PW * PH * 3);   // 64*64*3 = 12288 octets, taille attendue par server.py
+    for (let i=0; i<PW*PH; i++){
+      panelBuf[i*3]   = pdata[i*4];
+      panelBuf[i*3+1] = pdata[i*4+1];
+      panelBuf[i*3+2] = pdata[i*4+2];
+    }
+    // POST octets bruts RGB vers le Pi ; .buffer pour fiabiliser l'envoi sur Safari iOS
+    fetch('/api/image', { method:'POST', headers:{'Content-Type':'application/octet-stream'}, body: panelBuf.buffer })
+      .then(r => setLedStatus(r.ok))
+      .catch(()=> setLedStatus(false));
+  };
+  img.src = url;
+});
+
+/* ============ UI : PALETTES (swatch identique au projet original) ============ */
+// ordre des palettes : neutres, puis Air (défaut du panneau), puis arc-en-ciel (rouge→violet)
+const PAL_ORDER = ['bw', 'mono', 'brume', 'anodise', 'steel', 'ink', 'lin', 'airdraw', 'prisme', 'neonuit', 'vitrail', 'vapeur', 'recif', 'ecliptique', 'carnaval', 'maree', 'couchant', 'iris', 'msf', 'piment', 'ember', 'lava', 'heat', 'cuivrec', 'ambre', 'solaire', 'copper', 'gold', 'sand', 'terracotta', 'coral', 'peche', 'orrose', 'sunset', 'rose', 'blush', 'bonbon', 'pop', 'grape', 'laser', 'magnetique', 'neon', 'vhs', 'infrarouge', 'frost', 'givre', 'arctic', 'nuitbleue', 'cool', 'ocean', 'abysse', 'lagon', 'storm', 'arcade', 'mint', 'jade', 'forest', 'sauge', 'phosphor', 'oscillo', 'toxic', 'acid', 'fluo', 'radiation', 'rgb', 'lavande'];
+function buildPalettes(){
+  const grid = document.getElementById('palGrid');
+  grid.innerHTML = '';
+  palCells.length = 0;
+  const ids = PAL_ORDER.filter(id => PAL[id]).concat(Object.keys(PAL).filter(id => !PAL_ORDER.includes(id)));
+  for (const id of ids){
+    const cell = document.createElement('div');
+    cell.className = 'pal-cell' + (id===palette ? ' on' : '');
+    cell.dataset.pal = id;
+    cell.innerHTML = '<canvas width="'+PCELL+'" height="'+PCELL+'"></canvas><b>'+PAL[id].name+'</b>';
+    cell.title = PAL[id].name;
+    cell.onclick = ()=>{
+      palette = id;
+      stopShuffle();
+      [...grid.children].forEach(c=>c.classList.remove('on'));
+      cell.classList.add('on');
+      syncPalChip();
+      pushState();
+      setTimeout(()=>closeModal('palOverlay'), 140);
+    };
+    grid.appendChild(cell);
+    const cx = cell.querySelector('canvas').getContext('2d');
+    palCells.push({ id, cx, img: cx.createImageData(PCELL, PCELL) });
+  }
+  syncPalChip();
+}
+
+/* la pastille reprend la couleur et le nom de la palette courante */
+function syncPalChip(){
+  if (currentAnim==='draw'){ drawInk = null; buildSwatches(); }
+  const p = PAL[palette]; if (!p) return;
+  const dot = document.getElementById('palChipDot');
+  const nm  = document.getElementById('palChipName');
+  const sh  = document.getElementById('palSheetName');
+  if (dot) dot.style.background = 'linear-gradient(45deg, '+p.grad+')';
+  if (nm)  nm.textContent = p.name;
+  if (sh)  sh.textContent = p.name;
+  // ligne palette du dock (Swiss)
+  const rn = document.getElementById('palRowName');
+  if (rn) rn.textContent = p.name;
+}
+
+/* Chaque vignette rend un plasma de reference dans sa propre palette : le meme
+   motif partout, pour comparer les gammes et non les animations. Le moteur ne
+   peut pas servir ici, ses dimensions sont figees et plusieurs animations
+   gardent un etat interne dimensionne pour l'apercu. */
+const PCELL = 40;
+const palCells = [];
+const palField = new Float32Array(PCELL*PCELL);
+let palLast = 0;
+
+function renderPalCells(now, t){
+  const ov = document.getElementById('palOverlay');
+  if (!ov || !ov.classList.contains('show')) return;
+  if (now - palLast < 110) return;
+  palLast = now;
+
+  // un seul champ scalaire, partage par toutes les vignettes : on ne recalcule
+  // pas le motif soixante-six fois, seulement sa mise en couleur
+  const H = PCELL/2;
+  for (let y=0, k=0; y<PCELL; y++){
+    const b = Math.sin(y/4.4 - t*0.6);
+    for (let x=0; x<PCELL; x++, k++){
+      const a = Math.sin(x/5.6 + t*0.8);
+      const e = Math.sin((x+y)/6.9 + t*0.5);
+      const f = Math.sin(Math.hypot(x-H, y-H)/3.7 - t);
+      palField[k] = (a+b+e+f)/4*0.5 + 0.5;
+    }
+  }
+  for (const c of palCells){
+    const P = PAL[c.id]; if (!P) continue;
+    const d = c.img.data;
+    for (let k=0, i=0; k<palField.length; k++, i+=4){
+      const col = P.fn(palField[k]);
+      d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2]; d[i+3]=255;
+    }
+    c.cx.putImageData(c.img, 0, 0);
+  }
+}
+
+/* ============ UI : PARAMETRES ============ */
+function createKnob(param){
+  // filet horizontal Swiss : libelle, piste, valeur. Le glissement se fait
+  // sur toute la ligne, plus besoin d'un cadran.
+  const cell = document.createElement('div');
+  cell.className = 'knob';
+  const lab = document.createElement('div'); lab.className='knob-lab';
+  lab.textContent = param.label.toUpperCase();
+  const track = document.createElement('div'); track.className='knob-track';
+  const fill = document.createElement('div'); fill.className='knob-fill';
+  track.appendChild(fill);
+  const val = document.createElement('div'); val.className='knob-val';
+  cell.append(lab, track, val);
+
+  const isUnit = (param.max <= 2);   // 0..1 ou 0..2 : on montre la vraie valeur
+  function update(){
+    const pct = (param.obj.v - param.min) / (param.max - param.min);
+    fill.style.width = Math.max(0, Math.min(1, pct)) * 100 + '%';
+    val.textContent = isUnit ? param.obj.v.toFixed(2) : Math.round(param.obj.v);
+  }
+  update();
+
+  function setFromX(clientX){
+    const r = track.getBoundingClientRect();
+    let pct = (clientX - r.left) / r.width;
+    pct = Math.max(0, Math.min(1, pct));
+    const raw = param.min + pct * (param.max - param.min);
+    param.obj.v = Math.round(raw / param.step) * param.step;
+    update(); pushStateDebounced();
+  }
+  let dragging = false;
+  function down(e){ dragging = true; e.preventDefault();
+    setFromX((e.touches?e.touches[0]:e).clientX); }
+  function move(e){ if(!dragging) return; e.preventDefault();
+    setFromX((e.touches?e.touches[0]:e).clientX); }
+  function up(){ dragging = false; }
+  // toute la ligne est sensible, cible tactile confortable malgre le filet fin
+  cell.addEventListener('pointerdown', down);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  cell.addEventListener('touchstart', down, {passive:false});
+  cell.addEventListener('touchmove', move, {passive:false});
+  cell.addEventListener('touchend', up);
+  return cell;
+}
+function createToggle(param){
+  const cell = document.createElement('div');
+  cell.className = 'toggle-swiss';
+  const lab = document.createElement('div'); lab.className='knob-lab'; lab.textContent=param.label.toUpperCase();
+  const tg = document.createElement('div'); tg.className='tg';
+  const off = document.createElement('span'); off.textContent='Non';
+  const on  = document.createElement('span'); on.textContent='Oui';
+  const paint = ()=>{ const v=param.obj.v>0.5; on.classList.toggle('on',v); off.classList.toggle('on',!v); };
+  off.onclick = ()=>{ param.obj.v=0; paint(); pushState(); };
+  on.onclick  = ()=>{ param.obj.v=1; paint(); pushState(); };
+  paint();
+  tg.append(off,on); cell.append(lab,tg);
+  return cell;
+}
+function createTextInput(param){
+  const cell = document.createElement('div');
+  cell.className = 'text-cell';
+  const inp = document.createElement('input');
+  inp.type='text'; inp.value=param.obj.v; inp.maxLength=48; inp.placeholder='VOTRE TEXTE';
+  inp.autocapitalize='characters'; inp.spellcheck=false;
+  inp.oninput = ()=>{ param.obj.v = inp.value; };
+  cell.appendChild(inp);
+  return cell;
+}
+// objet-relais pour que la sensibilite se pilote comme un parametre ordinaire
+const SENS_PARAM = {label:'Sensibilité', min:0, max:1, step:0.05,
+  get v(){ return soundSens; },
+  set v(x){ soundSens = x; pushStateDebounced(); }};
+
+function buildParams(){
+  // barre de dessin visible seulement en mode Dessin
+  const db = document.getElementById('drawBar');
+  if (db){
+    const show = (currentAnim==='draw');
+    db.style.display = show ? 'flex' : 'none';
+    if (show) buildSwatches();
+  }
+  const row = document.getElementById('paramsRow');
+  row.innerHTML='';
+  const a = ANIM[currentAnim];
+  const keys = Object.keys(a.params);
+  if (!keys.length && !soundOn){
+    const empty = document.createElement('div');
+    empty.className='glass params-empty';
+    empty.textContent='Pas de réglage pour cette animation';
+    row.appendChild(empty);
+    return;
+  }
+  // texte en premier si présent
+  const textKey = keys.find(k=>typeof a.params[k].v==='string' && !a.params[k].type);
+  if (textKey){
+    row.appendChild(createTextInput({label:a.params[textKey].label, obj:a.params[textKey]}));
+  }
+  const room = soundOn ? 2 : 3;
+  const numKeys = keys.filter(k=>k!==textKey && a.params[k].type!=='bgcolor').slice(0, room);
+  for (const k of numKeys){
+    const pr = a.params[k];
+    if (pr.type==='toggle') row.appendChild(createToggle({label:pr.label, obj:pr}));
+    else row.appendChild(createKnob({label:pr.label, obj:pr, min:pr.min, max:pr.max, step:pr.step}));
+  }
+  if (soundOn){
+    row.appendChild(createKnob({label:SENS_PARAM.label, obj:SENS_PARAM,
+      min:SENS_PARAM.min, max:SENS_PARAM.max, step:SENS_PARAM.step}));
+  }
+}
+
+/* ============ IP STATUS ============ */
+let ledConnected = true;
+const ipDot = document.getElementById('ipDot');
+function setLedStatus(ok){
+  ledConnected = ok;
+  ipDot.classList.toggle('off', !ok);
+  const row = document.getElementById('ipRow');
+  const st  = document.getElementById('ipState');
+  if (row) row.classList.toggle('offline', !ok);
+  if (st)  st.textContent = ok ? 'En ligne' : 'Hors ligne';
+}
+
+// IP : chargée depuis le stockage local, éditable via modal.
+// Le stockage peut être refusé (PWA, navigation privée) : sans garde, l'exception
+// interrompt tout le script et l'écran reste vide.
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+const ipText = document.getElementById('ipText');
+const ipInput = document.getElementById('ipInput');
+const savedIp = store.get('lumen_concept_ip');
+if (savedIp){ ipText.textContent = savedIp; ipInput.value = savedIp; }
+const animBarEl = document.getElementById('animBar');
+if (animBarEl) animBarEl.addEventListener('click', ()=>openModal('animOverlay'));
+
+const palChipEl = document.getElementById('palChip');
+if (palChipEl) palChipEl.addEventListener('click', ()=>openModal('palOverlay'));
+const palRowEl = document.getElementById('palRow');
+if (palRowEl) palRowEl.addEventListener('click', ()=>openModal('palOverlay'));
+
+document.getElementById('ipRow').addEventListener('click', ()=>{
+  ipInput.value = ipText.textContent;
+  openModal('ipOverlay');
+  setTimeout(()=>ipInput.focus(), 300);
+});
+document.getElementById('ipSaveBtn').addEventListener('click', ()=>{
+  const v = ipInput.value.trim();
+  if (v){ ipText.textContent = v; store.set('lumen_concept_ip', v); }
+  closeModal('ipOverlay');
+});
+
+/* ============ PAUSE / POWER ============ */
+const PAUSE_ICON='<circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/>';
+const PLAY_ICON='<circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/>';
+document.getElementById('pauseBtn').addEventListener('click', function(){
+  running=!running;
+  this.querySelector('.ico').innerHTML = running?PAUSE_ICON:PLAY_ICON;
+  document.getElementById('pauseLab').textContent = running?'PAUSE':'PLAY';
+  this.classList.toggle('on', !running);
+  pushState();
+});
+document.getElementById('powerBtn').addEventListener('click', function(){
+  poweredOn=!poweredOn;
+  this.style.opacity = poweredOn?'1':'.35';
+  if (!poweredOn){ for(let i=0;i<pixels.length;i++)pixels[i]=0; blitToCanvas(); }
+  pushState();
+});
+
+/* ============ MODALS ============ */
+function openModal(id){document.getElementById(id).classList.add('show');}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+document.querySelectorAll('.modal-overlay').forEach(ov=>{ov.addEventListener('click',e=>{if(e.target===ov)closeModal(ov.id);});});
+document.querySelectorAll('.modal-close').forEach(b=>{b.addEventListener('click',()=>closeModal(b.dataset.close));});
+
+/* SCENES : save/recall 8 slots */
+let sceneMode='recall', currentScene=-1;
+let scenes=[null,null,null,null,null,null,null,null];
+try{ const s=JSON.parse(store.get('lumen_concept_scenes')||'null'); if(Array.isArray(s)&&s.length===8) scenes=s; }catch(e){}
+function buildSceneSlots(){
+  const grid=document.getElementById('sceneSlots'); grid.innerHTML='';
+  for(let i=0;i<8;i++){
+    const slot=document.createElement('div');
+    slot.className='scene-slot'; slot.textContent = scenes[i] && scenes[i].name ? scenes[i].name : (i+1);
+    if(scenes[i])slot.classList.add('filled');
+    if(i===currentScene)slot.classList.add('active');
+    if(sceneMode==='save')slot.classList.add('saving');
+    slot.onclick=()=>{
+      if(sceneMode==='save'){
+        const nom = (prompt('Nom de la scène (ex. Soirée, Travail, Sieste) :', scenes[i] && scenes[i].name ? scenes[i].name : '') || '').trim().slice(0,14);
+        const snap={name:nom, anim:currentAnim, palette, params:{}};
+        for(const k in ANIM[currentAnim].params) snap.params[k]=ANIM[currentAnim].params[k].v;
+        scenes[i]=snap; store.set('lumen_concept_scenes',JSON.stringify(scenes));
+        currentScene=i; setSceneMode('recall'); buildSceneSlots();
+      } else {
+        const s=scenes[i]; if(!s)return;
+        fadeTransition();
+        currentAnim=s.anim; palette=s.palette;
+        for(const k in s.params) if(ANIM[currentAnim].params[k]) ANIM[currentAnim].params[k].v=s.params[k];
+        currentScene=i;
+        buildAnimCarousel(); buildParams(); buildPalettes(); buildSceneSlots();
+        pushState();
+        setTimeout(()=>closeModal('scenesOverlay'),180);
+      }
+    };
+    grid.appendChild(slot);
+  }
+}
+function setSceneMode(m){
+  sceneMode=m;
+  const lab=document.getElementById('sceneModeLab'), btn=document.getElementById('toggleSaveMode');
+  if(m==='save'){lab.textContent='Touche un emplacement pour sauver';btn.textContent='Mode rappel';btn.classList.add('primary');}
+  else{lab.textContent='Touche un emplacement pour rappeler';btn.textContent='Enregistrer une scène';btn.classList.remove('primary');}
+  buildSceneSlots();
+}
+document.getElementById('toggleSaveMode').onclick=()=>setSceneMode(sceneMode==='save'?'recall':'save');
+document.getElementById('scenesBtn').addEventListener('click',function(){this.classList.add('on');setSceneMode('recall');openModal('scenesOverlay');});
+document.getElementById('scenesOverlay').addEventListener('transitionend',()=>{if(!document.getElementById('scenesOverlay').classList.contains('show'))document.getElementById('scenesBtn').classList.remove('on');});
+
+/* VEILLE */
+function wireSwitch(id, cb){const el=document.getElementById(id);let st=false;el.addEventListener('click',()=>{st=!st;el.classList.toggle('on',st);if(cb)cb(st);});}
+wireSwitch('sleepSwitch', ()=>pushSleep());
+wireSwitch('autoBriSwitch');
+wireSwitch('moodSwitch', (on)=>{ moodOn = on; pushState({ mood_on: on }); });
+function pushSleep(){
+  const on = document.getElementById('sleepSwitch').classList.contains('on');
+  const hhmm = document.getElementById('sleepTime').value;
+  pushState({ sleep_at: on ? hhmm : "" });
+}
+document.getElementById('sleepTime').addEventListener('input',function(){document.getElementById('sleepTimeSub').textContent=this.value; if(document.getElementById('sleepSwitch').classList.contains('on')) pushSleep();});
+document.getElementById('sleepBtn').addEventListener('click',function(){openModal('sleepOverlay');});
+
+// --- Minuteur d'extinction (éteindre après X minutes) ---
+let sleepTimer = null, sleepDeadline = null;
+function powerOff(){
+  if(poweredOn){ poweredOn=false;
+    const b=document.getElementById('powerBtn'); if(b) b.style.opacity='.35';
+    for(let i=0;i<pixels.length;i++)pixels[i]=0; blitToCanvas(); pushState(); }
+}
+document.querySelectorAll('[data-timer]').forEach(btn=>{
+  btn.addEventListener('click',function(){
+    const min=+this.dataset.timer;
+    if(sleepTimer){ clearTimeout(sleepTimer); sleepTimer=null; sleepDeadline=null; }
+    document.querySelectorAll('[data-timer]').forEach(b=>b.classList.remove('primary'));
+    const sub=document.getElementById('timerSub');
+    if(min>0){
+      this.classList.add('primary');
+      sleepDeadline=Date.now()+min*60000;
+      sleepTimer=setTimeout(()=>{ powerOff(); sub.textContent='Éteint par le minuteur'; sleepTimer=null;
+        document.querySelectorAll('[data-timer]').forEach(b=>b.classList.remove('primary')); }, min*60000);
+      sub.textContent='Extinction dans '+min+' min';
+    } else { sub.textContent='Minuteur annulé'; }
+  });
+});
+
+// --- Extinction à heure programmée (vérifiée chaque minute) ---
+setInterval(()=>{
+  if(!document.getElementById('sleepSwitch').classList.contains('on')) return;
+  const now=new Date();
+  const hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  if(hhmm===document.getElementById('sleepTime').value && now.getSeconds()<30){ powerOff(); }
+}, 20000);
+
+/* LUMINOSITE */
+const briLabel=document.getElementById('briLabel'),briRange=document.getElementById('briRange'),briModalValue=document.getElementById('briModalValue');
+function applyBrightness(pct){ masterBri=Math.round(pct/100*255); briLabel.textContent=pct+'%'; briModalValue.textContent=pct+'%'; }
+briRange.addEventListener('input',function(){applyBrightness(+this.value); pushStateDebounced();});
+document.getElementById('briBtn').addEventListener('click',()=>openModal('briOverlay'));
+
+/* ============ DESSIN : effacer + envoyer ============ */
+document.getElementById('drawClearBtn').addEventListener('click', ()=>{ drawClear(); });
+document.getElementById('drawSendBtn').addEventListener('click', function(){
+  if (!draw.has) return;
+  const btn = this;
+  const panelBuf = new Uint8Array(draw.buf);   // déjà en 64x64, prêt pour le panneau
+  btn.textContent = '…';
+  fetch('/api/image', { method:'POST', headers:{'Content-Type':'application/octet-stream'}, body: panelBuf.buffer })
+    .then(r => { setLedStatus(r.ok); btn.textContent = r.ok ? 'ENVOYÉ ✓' : 'ERREUR';
+      setTimeout(()=>{ btn.textContent='ENVOYER'; }, 1400); })
+    .catch(()=> { setLedStatus(false); btn.textContent='HORS LIGNE';
+      setTimeout(()=>{ btn.textContent='ENVOYER'; }, 1400); });
+});
+
+/* ============ INIT ============ */
+// blindage : aucune erreur d'init ne doit laisser un écran blanc (surtout en PWA standalone)
+try { buildAnimCarousel(); } catch(e){ console.error('carousel', e); }
+try { buildPalettes(); } catch(e){ console.error('palettes', e); }
+try { buildParams(); } catch(e){ console.error('params', e); }
+try { buildSceneSlots(); } catch(e){ console.error('scenes', e); }
+// synchronise avec le Pi, mais sans jamais bloquer le rendu si le réseau échoue
+// au démarrage on adopte d'abord l'état du Pi, sinon l'ouverture de l'app
+// couperait le mode aléatoire déjà en cours sur le panneau
+fetch('/api/state').then(r => r.json()).then(s => {
+  if (s && s.shuffle){
+    shuffleOn = true;
+    const b = document.getElementById('shuffleBtn');
+    if (b) b.classList.add('on');
+    shuffleApply(s.anim, s.palette);
+  }
+  if (s && s.day){
+    dayOn = true;
+    syncModeTabs();
+    shuffleApply(s.anim, s.palette);
+  }
+  // refleter la veille reellement programmee sur le Pi
+  if (s && s.sleep_at){
+    const sw = document.getElementById('sleepSwitch');
+    const ti = document.getElementById('sleepTime');
+    const sub = document.getElementById('sleepTimeSub');
+    if (sw) sw.classList.add('on');
+    if (ti) ti.value = s.sleep_at;
+    if (sub) sub.textContent = s.sleep_at;
+
+  }
+  // refleter le mode ambiance actif sur le Pi
+  if (s && s.mood_on){
+    moodOn = true;
+    const sw = document.getElementById('moodSwitch');
+    if (sw) sw.classList.add('on');
+  }
+  pushState();
+}).catch(()=>{ try { pushState(); } catch(e){ console.error('pushState', e); } });
+</script>
+</body>
+</html>
