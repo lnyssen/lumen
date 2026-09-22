@@ -1,0 +1,4 @@
+*.py
+setup-service.sh
+palettes.json
+.git

@@ -981,6 +981,201 @@ def aujourdhui(t, p, dt):
     PIX[:] = lut[idx]
 
 
+# ─────────────────────────────────────────────── SEQUENCE
+# Esthetique raster-noton : blanc pur sur noir, des scenes geometriques courtes
+# enchainees en coupes franches. Chaque scene est une fonction de sa progression
+# u (0..1) et de son numero k : sans etat, sauf l'automate et l'erosion, mis en
+# cache pour la duree de la scene. Meme logique dans l'app (renderSequence).
+
+SEQ_SCENES = ["ligne", "verticale", "bloc", "echelle", "poussiere",
+              "essaim", "automate", "erosion", "barres"]
+SEQ_ORDER = [0, 5, 2, 3, 6, 1, 4, 8, 7]     # ordre du mode auto
+SEQ_RULES = [90, 30, 150, 110, 45, 73]
+_SEQ_U = max(1, W // 64)                     # unite : 1 pixel sur le panneau 64
+_SEQ_IDX = (_yy * W + _xx).astype(np.float64)
+_seq_cache = {}
+
+
+def _hash(a):
+    """hash pseudo-aleatoire 0..1, scalaire ou ndarray (identique au JS)"""
+    return np.mod(np.sin(np.asarray(a, dtype=np.float64) * 12.9898 + 78.233) * 43758.5453, 1.0)
+
+
+def _ease(x):
+    x = min(1.0, max(0.0, x))
+    return 1 - (1 - x) ** 3
+
+
+def _seq_ligne(m, u, k, tt):
+    U, cy = _SEQ_U, H // 2
+    if u < .22:
+        w = int(W * _ease(u / .22))
+        x0 = (W - w) // 2
+        m[cy:cy + U, x0:x0 + w] = 1
+        return
+    n = min(12, 1 + int((u - .22) / .78 * 12))
+    for i in range(n):
+        y = int(round(cy + (i - (n - 1) / 2) * 3 * U))
+        m[max(0, y):max(0, y + U), :] = 1
+
+
+def _seq_verticale(m, u, k, tt):
+    U, step = _SEQ_U, int(u * 6)
+    x = int(_hash(k * 7 + step) * (W - 8 * U)) + 4 * U
+    m[:, x:x + U] = 1
+    if step % 2:
+        m[:, W - x - U:W - x] = 1
+
+
+def _seq_bloc(m, u, k, tt):
+    if u < .55:
+        s = int(math.ceil(W / 2 * _ease(u / .55)))
+        if s:
+            m[H - s:, W - s:] = 1
+    else:
+        m[:int(H / 2 * _ease((u - .55) / .45)), :] = 1
+
+
+def _seq_echelle(m, u, k, tt):
+    U = _SEQ_U
+    x0, x1 = int(W * .22), int(W * .78)
+    n = 1 + int(u * 14)
+    q = int(tt * 8)
+    for i in range(n):
+        y = 4 * U + i * 4 * U
+        if y >= H - 2 * U:
+            break
+        if u > .8 and _hash(i + q * 13) < .2:
+            continue
+        m[y:y + U, x0:x1] = 1
+        if _hash(k * 31 + i) < .3:
+            g = x0 + int(_hash(k * 17 + i) * (x1 - x0 - 6 * U))
+            m[y:y + U, g:g + 6 * U] = 0
+
+
+def _seq_poussiere(m, u, k, tt):
+    dens = .18 * math.sin(math.pi * u) + .02
+    v = _hash(_SEQ_IDX + int(tt * 10) * 4099.0 + k * 7.0)
+    inside = ((_xx >= W * .2) & (_xx < W * .8) & (_yy >= H * .2) & (_yy < H * .8))
+    m[:] = (inside & (v < dens)).astype(np.float32)
+
+
+def _seq_essaim(m, u, k, tt):
+    U = _SEQ_U
+    i = np.arange(90, dtype=np.float64)
+    a = np.maximum(_hash(i * 2 + k * 977), 1e-6)
+    b = _hash(i * 2 + 1 + k * 977)
+    r = np.sqrt(-2 * np.log(a))
+    gx, gy = r * np.cos(2 * math.pi * b), r * np.sin(2 * math.pi * b)
+    q = int(tt * 8)
+    jx = np.floor(_hash(i + q * 131) * 3) - 1
+    jy = np.floor(_hash(i + q * 131 + 57) * 3) - 1
+    cx = W * (.5 + .3 * math.sin(2 * math.pi * u * .7 + k))
+    cy = H * (.5 + .3 * math.sin(2 * math.pi * u * .5 + k * 1.7))
+    sig = W * (.04 + .05 * (.5 + .5 * math.sin(u * math.pi * 3)))
+    sig = np.where(i % 10 == 0, sig * 3, sig)
+    xs = (np.round((cx + gx * sig) / U + jx) * U).astype(np.int32)
+    ys = (np.round((cy + gy * sig) / U + jy) * U).astype(np.int32)
+    ok = (xs >= 0) & (xs <= W - U) & (ys >= 0) & (ys <= H - U)
+    for dy in range(U):
+        for dx in range(U):
+            m[ys[ok] + dy, xs[ok] + dx] = 1
+
+
+def _seq_cells(key, k, build):
+    """cache par scene : reconstruit seulement quand la scene change"""
+    c = _seq_cache.get(key)
+    if not c or c[0] != k:
+        c = (k, build())
+        _seq_cache[key] = c
+    return c[1]
+
+
+def _seq_upscale(m, g):
+    U = _SEQ_U
+    m[:] = np.kron(g, np.ones((U, U), dtype=np.float32))[:H, :W]
+
+
+def _seq_automate(m, u, k, tt):
+    U = _SEQ_U
+    gw, gh = W // U, H // U
+    rule = SEQ_RULES[k % len(SEQ_RULES)]
+
+    def build():
+        bits = np.array([(rule >> j) & 1 for j in range(8)], dtype=np.uint8)
+        g = np.zeros((gh, gw), dtype=np.float32)
+        if rule in (90, 150):
+            row = np.zeros(gw, dtype=np.uint8)
+            row[gw // 2] = 1
+        else:
+            row = (_hash(np.arange(gw) + k * 311) < .5).astype(np.uint8)
+        # bords fixes a 0 : sur un anneau de 64, la regle 90 s'eteint en 32 rangs
+        for y in range(gh):
+            g[y] = row
+            left = np.concatenate(([0], row[:-1])).astype(np.uint8)
+            right = np.concatenate((row[1:], [0])).astype(np.uint8)
+            row = bits[(left << 2) | (row << 1) | right]
+        return g
+
+    g = _seq_cells("ca", k, build)
+    r = min(gh, int(u * 1.15 * gh))
+    shown = np.zeros_like(g)
+    shown[:r] = g[:r]
+    if r < gh:
+        shown[r] = 1                       # ligne de balayage
+    _seq_upscale(m, shown)
+
+
+def _seq_erosion(m, u, k, tt):
+    U = _SEQ_U
+    gw, gh = W // U, H // U
+
+    def build():
+        g = (_hash(np.arange(gw * gh) + k * 523).reshape(gh, gw) < .5).astype(np.uint8)
+        steps = [g]
+        for _ in range(10):
+            n = sum(np.roll(np.roll(g, dy, 0), dx, 1)
+                    for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+            g = (n >= 5).astype(np.uint8)
+            steps.append(g)
+        return steps
+
+    steps = _seq_cells("ero", k, build)
+    _seq_upscale(m, steps[min(10, int(u * 11))].astype(np.float32))
+
+
+def _seq_barres(m, u, k, tt):
+    U = _SEQ_U
+    cw, ch = 8 * U, 4 * U
+    q = int(tt * 6)
+    ci = (_xx // cw).astype(np.float64)
+    cj = (_yy // ch).astype(np.float64)
+    mode = _hash(ci * 3.1 + q * 101 + k * 7)
+    on = _hash(ci + cj * 17 + q * 101 + k * 7) < (.1 + .8 * math.sin(math.pi * u))
+    vert = (_xx // U) % 2 == 0
+    horz = (_yy // U) % 2 == 0
+    pat = np.where(mode < .45, vert, np.where(mode < .75, horz, np.where(mode < .9, True, vert & horz)))
+    m[:] = (on & pat).astype(np.float32)
+
+
+_SEQ_FN = [_seq_ligne, _seq_verticale, _seq_bloc, _seq_echelle, _seq_poussiere,
+           _seq_essaim, _seq_automate, _seq_erosion, _seq_barres]
+
+
+def sequence(t, p, dt):
+    sp = p.get("speed", 1.0)
+    dur = max(1.0, p.get("dur", 4.0))
+    fixed = int(p.get("scene", 0))
+    tt = t * sp
+    k = int(tt // dur)
+    u = (tt % dur) / dur
+    sc = (fixed - 1) % len(_SEQ_FN) if fixed > 0 else SEQ_ORDER[k % len(SEQ_ORDER)]
+    m = np.zeros((H, W), dtype=np.float32)
+    if u < .96:                            # un noir bref entre deux coupes
+        _SEQ_FN[sc](m, u, k, tt)
+    PIX[:] = m[:, :, None] * pal(1.0)
+
+
 # ─────────────────────────────────────────────── CAMERA
 # Le flux arrive deja en 64x64 RGB depuis sensors.py : ici on ne fait
 # qu'interpreter l'image, jamais de decodage lourd.
@@ -1188,7 +1383,7 @@ ANIMS = {
     "clock2": clock2, "text": text, "photo": photo, "weather": weather,
     "mirror": cam_mirror, "silhouette": cam_silhouette, "trace": cam_trace,
     "spectre": snd_spectre, "pulse": snd_pulse, "onde": snd_onde,
-    "aujourdhui": aujourdhui,
+    "aujourdhui": aujourdhui, "sequence": sequence,
 }
 
 
