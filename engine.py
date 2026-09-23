@@ -20,6 +20,7 @@ import struct
 import threading
 import random
 import time
+import traceback
 import urllib.request
 
 import numpy as np
@@ -1604,6 +1605,7 @@ def render_loop(fps=25):
     prev_anim = None
     next_switch = 0.0
     t_anim = 0.0          # temps de l'animation, accelere par le son
+    _last_err = [0.0]     # derniere trace d'erreur affichee
     _last_sleep_stamp = [""]   # derniere extinction programmee honoree
 
     while True:
@@ -1706,7 +1708,9 @@ def render_loop(fps=25):
                 pass
             # la luminosite d'ambiance module le rendu apres coup
             if s["mood_on"] and mood_bri < 0.999:
-                PIX *= mood_bri
+                # en place : « PIX *= ... » ferait de PIX une variable locale
+                # de render_loop, et tout le rendu planterait a la frame suivante
+                PIX[:] *= mood_bri
         # en pause : on ne rappelle pas fn(), PIX garde la derniere image
         # calculee, et on continue quand meme a l'envoyer (le panneau reste
         # allume sur cette image au lieu de s'eteindre).
@@ -1732,7 +1736,13 @@ def render_loop(fps=25):
         if sl > 0:
             time.sleep(sl)
       except Exception:
-        # une erreur imprevue ne doit JAMAIS tuer le rendu : on saute la frame
+        # une erreur imprevue ne doit JAMAIS tuer le rendu : on saute la frame.
+        # On la journalise quand meme (au plus une fois toutes les 5 s) : un
+        # rendu muet qui tourne dans le vide est impossible a diagnostiquer.
+        now2 = time.time()
+        if now2 - _last_err[0] > 5:
+            _last_err[0] = now2
+            traceback.print_exc()
         time.sleep(.05)
 
 
