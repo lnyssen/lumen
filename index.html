@@ -2919,7 +2919,8 @@ const PLAY_ICON='<circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill
 document.getElementById('pauseBtn').addEventListener('click', function(){
   running=!running;
   this.querySelector('.ico').innerHTML = running?PAUSE_ICON:PLAY_ICON;
-  document.getElementById('pauseLab').textContent = running?'PAUSE':'PLAY';
+  const lab = document.getElementById('pauseLab');   // absent de l'interface actuelle
+  if (lab) lab.textContent = running?'PAUSE':'PLAY';
   this.classList.toggle('on', !running);
   pushState();
 });
