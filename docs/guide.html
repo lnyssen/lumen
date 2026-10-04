@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LUMEN — Setup guide</title>
+<!--
+  Source of guide.pdf. To regenerate:
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+    --no-pdf-header-footer --print-to-pdf=guide.pdf docs/guide.html
+  Never put a network name, a password or a local IP in this file: the PDF is public.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #000; color: #fff; }
+  body {
+    font-family: Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 10.5pt; line-height: 1.55;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page {
+    width: 210mm; height: 297mm; padding: 22mm 20mm 18mm;
+    position: relative; overflow: hidden; page-break-after: always;
+    display: flex; flex-direction: column;
+  }
+  .page:last-child { page-break-after: auto; }
+  .mono, .label, .foot, code, .cmd, .tag { font-family: 'JetBrains Mono', Menlo, monospace; }
+  .label {
+    font-size: 7.5pt; letter-spacing: .32em; text-transform: uppercase;
+    color: rgba(255,255,255,.55); display: flex; align-items: center; gap: 4mm;
+  }
+  .label::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.25); }
+  h1 {
+    font-size: 26pt; font-weight: 800; letter-spacing: -.02em; text-transform: uppercase;
+    line-height: 1; margin: 5mm 0 4mm;
+  }
+  h1 .n { color: rgba(255,255,255,.35); margin-right: 3mm; }
+  h2 {
+    font-size: 8.5pt; font-weight: 700; letter-spacing: .22em; text-transform: uppercase;
+    margin: 7mm 0 3mm;
+  }
+  .lead { color: rgba(255,255,255,.7); font-size: 11.5pt; max-width: 150mm; margin-bottom: 6mm; }
+  p + p { margin-top: 2.5mm; }
+  b, strong { font-weight: 700; color: #fff; }
+  .dim { color: rgba(255,255,255,.6); }
+  ol.steps { list-style: none; counter-reset: s; }
+  ol.steps > li {
+    counter-increment: s; position: relative; padding: 2.6mm 0 2.6mm 15mm;
+    border-top: 1px solid rgba(255,255,255,.18);
+  }
+  ol.steps > li:last-child { border-bottom: 1px solid rgba(255,255,255,.18); }
+  ol.steps > li::before {
+    content: counter(s, decimal-leading-zero); position: absolute; left: 0; top: 2.6mm;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 9pt;
+    border: 1.5px solid #fff; padding: .6mm 1.6mm; line-height: 1.2;
+  }
+  ol.steps > li > b:first-child { display: block; margin-bottom: .6mm; }
+  .note {
+    border: 1px solid rgba(255,255,255,.3); padding: 4mm 5mm; margin: 6mm 0 0;
+  }
+  .note .tag {
+    display: block; font-size: 7.5pt; letter-spacing: .28em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 1.5mm;
+  }
+  .note.warn { border-color: #fff; border-width: 1.5px; }
+  .cmd {
+    border: 1px solid rgba(255,255,255,.3); margin: 3mm 0;
+  }
+  .cmd .head {
+    display: flex; justify-content: space-between; padding: 1.8mm 4mm;
+    border-bottom: 1px solid rgba(255,255,255,.2);
+    font-size: 7pt; letter-spacing: .26em; text-transform: uppercase; color: rgba(255,255,255,.55);
+  }
+  .cmd pre {
+    font-family: 'JetBrains Mono', monospace; font-size: 9pt; line-height: 1.6;
+    padding: 3mm 4mm; white-space: pre-wrap; color: #fff;
+  }
+  .cmd pre .p { color: rgba(255,255,255,.45); }
+  table.kv { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+  table.kv td {
+    vertical-align: top; padding: 2.4mm 0; border-top: 1px solid rgba(255,255,255,.18);
+  }
+  table.kv tr:last-child td { border-bottom: 1px solid rgba(255,255,255,.18); }
+  table.kv td:first-child {
+    width: 46mm; padding-right: 5mm; font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; font-size: 9pt;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8mm; }
+  .grid2 table.kv td:first-child { width: 27mm; }
+  .foot {
+    margin-top: auto; padding-top: 3mm; border-top: 1px solid rgba(255,255,255,.25);
+    display: flex; justify-content: space-between;
+    font-size: 7pt; letter-spacing: .28em; text-transform: uppercase; color: rgba(255,255,255,.5);
+  }
+  .foot b { color: #fff; }
+
+  /* Cover */
+  .cover { padding: 22mm 20mm 18mm; }
+  .cover .grid {
+    position: absolute; left: 20mm; right: 20mm; top: 52mm; height: 120mm;
+    display: grid; grid-template-columns: repeat(16, 1fr); gap: 2mm;
+  }
+  .cover .grid i { aspect-ratio: 1; background: #fff; border-radius: 50%; }
+  .cover h1 { font-size: 78pt; letter-spacing: -.04em; margin-top: auto; }
+  .cover .lead { margin-top: 4mm; }
+  .cover .by { font-family: 'JetBrains Mono', monospace; font-size: 7.5pt; letter-spacing: .32em;
+    text-transform: uppercase; color: rgba(255,255,255,.55); margin-top: 8mm; }
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────────── COVER ───────────────────────────── -->
+<section class="page cover">
+  <div class="label">Complete setup guide</div>
+  <div class="grid" id="dots"></div>
+  <h1>LUMEN</h1>
+  <p class="lead">A 64×64 wall of light that runs on its own, day and night. You conduct it from your phone; the Raspberry Pi keeps the show going when the phone is put away.</p>
+  <div class="by">Laurent Nyssen · Light installation · Autumn 2026</div>
+</section>
+
+<!-- ───────────────────────────── CONTENTS ───────────────────────────── -->
+<section class="page">
+  <div class="label">Contents</div>
+  <h1>From box to glow</h1>
+  <table class="kv">
+    <tr><td>01</td><td><b>The system at a glance</b> <span class="dim">— who does what</span></td></tr>
+    <tr><td>02</td><td><b>The hardware</b> <span class="dim">— the full list, and the optional extras</span></td></tr>
+    <tr><td>03</td><td><b>The wiring</b> <span class="dim">— panel, controller, power</span></td></tr>
+    <tr><td>04</td><td><b>WLED</b> <span class="dim">— get the panel on your network</span></td></tr>
+    <tr><td>05</td><td><b>The Raspberry Pi</b> <span class="dim">— a headless system, ready to go</span></td></tr>
+    <tr><td>06</td><td><b>Install LUMEN</b> <span class="dim">— three commands</span></td></tr>
+    <tr><td>07</td><td><b>Use it</b> <span class="dim">— the app, its animations and modes</span></td></tr>
+    <tr><td>08</td><td><b>Voice control</b> <span class="dim">— optional, with an Amazon Echo</span></td></tr>
+    <tr><td>09</td><td><b>Update</b> <span class="dim">— from the Pi, or from the phone</span></td></tr>
+    <tr><td>10</td><td><b>Troubleshooting</b> <span class="dim">— if it gets stuck</span></td></tr>
+  </table>
+  <div class="note">
+    <span class="tag">One convention</span>
+    Commands are typed in two windows. <b>Computer</b> means your computer's terminal. <b>Pi</b> means the Raspberry Pi's terminal, once you are connected to it (its prompt reads <code>you@lumen:~ $</code>). Each block says which one to use.
+  </div>
+  <div class="note">
+    <span class="tag">A note on labels</span>
+    The app's controls are in French. Their names are kept here exactly as they appear on screen, with a translation alongside.
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide</span><span>Contents</span></div>
+</section>
+
+<!-- ───────────────────────────── 01 · 02 ───────────────────────────── -->
+<section class="page">
+  <div class="label">01 · The system at a glance</div>
+  <h1><span class="n">01</span>Three parts</h1>
+  <p class="lead">The Pi is the heart of the object. It computes every frame itself and sends it to the panel. The phone is only a remote: close it, and the panel keeps going.</p>
+  <table class="kv">
+    <tr><td>The panel</td><td>64×64 LEDs. The glowing surface. It computes nothing, it displays.</td></tr>
+    <tr><td>The controller</td><td>A small board running <b>WLED</b> that physically drives the panel. It receives the images over the network.</td></tr>
+    <tr><td>The Raspberry Pi</td><td>Generates the animations, around the clock, and streams them to the controller. It also serves the app to your phone and remembers your settings and scenes.</td></tr>
+  </table>
+  <div class="note">
+    <span class="tag">An image's journey</span>
+    The Pi paints a 64×64 frame → sends it over Wi-Fi to the controller (DDP protocol) → the controller lights the panel. Your phone only tells the Pi what to paint.
+  </div>
+
+  <div class="label" style="margin-top:7mm">02 · The hardware</div>
+  <h1><span class="n">02</span>The full list</h1>
+  <div class="grid2">
+    <table class="kv">
+      <tr><td>Panel</td><td>HUB75 LED panel, 64×64.</td></tr>
+      <tr><td>Controller</td><td>Huidu HD-WF2 (ESP32-S3) running WLED.</td></tr>
+      <tr><td>Raspberry Pi</td><td>3 A+ or better. 512 MB is enough.</td></tr>
+      <tr><td>Power</td><td>5 V / 8 A supply for panel and controller. The Pi has its own.</td></tr>
+      <tr><td>microSD</td><td>For the Pi's system. 16 GB is plenty.</td></tr>
+    </table>
+    <table class="kv">
+      <tr><td>Webcam</td><td><span class="dim">Optional.</span> USB, for the camera animations (tested: Logitech C270).</td></tr>
+      <tr><td>Microphone</td><td><span class="dim">Optional.</span> USB, for the sound modes.</td></tr>
+      <tr><td>Amazon Echo</td><td><span class="dim">Optional.</span> 2nd or 3rd gen, for voice control.</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>01–02</b> · Understand</span></div>
+</section>
+
+<!-- ───────────────────────────── 03 · 04 ───────────────────────────── -->
+<section class="page">
+  <div class="label">03 · The wiring</div>
+  <h1><span class="n">03</span>Panel and controller</h1>
+  <p class="lead">Everything is done with the power off. Plug in the supply only at the very end, once every connection is checked.</p>
+  <ol class="steps">
+    <li><b>The data ribbon</b>Connect the HUB75 ribbon between the controller's <code>X1</code> output and the panel's input (marked "IN", arrow pointing into the panel).</li>
+    <li><b>The panel's 5 V</b>Connect the supply's 5 V terminals to the panel's power terminals, respecting + and –.</li>
+    <li><b>The controller's 5 V</b>Power the controller from the same supply. Check the polarity once more.</li>
+    <li><b>Power on</b>Plug the supply in. The controller boots, the panel initialises.</li>
+  </ol>
+  <div class="note warn">
+    <span class="tag">Polarity</span>
+    Reversing + and – on the 5 V is the one real way to damage the hardware. When in doubt, check again before plugging in.
+  </div>
+
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>03</b> · Wire</span></div>
+</section>
+
+<section class="page">
+  <div class="label">04 · WLED</div>
+  <h1><span class="n">04</span>Get the panel online</h1>
+  <ol class="steps">
+    <li><b>Join the controller</b>On first boot it creates a Wi-Fi network called <code>WLED-AP</code>. Connect your phone to it and the WLED page opens.</li>
+    <li><b>Put it on your network</b>In WLED's Wi-Fi settings, enter your home network's name and password. The controller joins the same network as the Pi.</li>
+    <li><b>Declare the matrix</b>In WLED's LED / 2D settings, set a <b>64 × 64</b> matrix. WLED's test effects should now fill the panel.</li>
+    <li><b>Note its name</b>Write down the controller's network name (<code>wled-xxxxxx.local</code>) or its IP address. You will give it to LUMEN in step 07. The name is better: it survives a change of network.</li>
+  </ol>
+  <div class="note">
+    <span class="tag">Keep your network to yourself</span>
+    Your Wi-Fi name and password go into WLED and into Raspberry Pi Imager — nowhere else. Neither LUMEN nor this guide ever needs them.
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>04</b> · Connect</span></div>
+</section>
+
+<!-- ───────────────────────────── 05 ───────────────────────────── -->
+<section class="page">
+  <div class="label">05 · The Raspberry Pi</div>
+  <h1><span class="n">05</span>A headless system</h1>
+  <p class="lead">A light system without a desktop, configured in advance: network, remote access, name. Everything is done from your computer with Raspberry Pi Imager.</p>
+  <ol class="steps">
+    <li><b>Install Raspberry Pi Imager</b>From raspberrypi.com. Insert the microSD card into your computer.</li>
+    <li><b>Choose the model and the system</b>Your Raspberry Pi model, then <b>Raspberry Pi OS Lite (64-bit)</b>.</li>
+    <li><b>Fill in the settings</b> (the gear, "Edit settings") before writing:
+      <table class="kv" style="margin-top:2.5mm">
+        <tr><td>Hostname</td><td><b>lumen</b> — the Pi will answer at <code>lumen.local</code>.</td></tr>
+        <tr><td>SSH</td><td>Enabled, with password authentication.</td></tr>
+        <tr><td>Username</td><td>A name and a password of your choice. The install script assumes <b>laurent</b>: use it, or adapt the script (step 06).</td></tr>
+        <tr><td>Wi-Fi</td><td>Your home network, the same one the controller joined.</td></tr>
+        <tr><td>Time zone</td><td>Your own — the "day" mode follows the real hour.</td></tr>
+      </table>
+    </li>
+    <li><b>Write the card</b>Wait for the verification, put the card in the Pi and power it on.</li>
+    <li><b>Connect</b>A minute or two later, from your computer:</li>
+  </ol>
+  <div class="cmd"><div class="head"><span>Terminal</span><span>Computer</span></div>
+<pre><span class="p">%</span> ssh laurent@lumen.local</pre></div>
+  <div class="note">
+    <span class="tag">First connection</span>
+    SSH asks you to confirm the machine's fingerprint: type <b>yes</b>, then your password. The prompt changes to <code>laurent@lumen:~ $</code> — you are on the Pi.
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>05</b> · The Raspberry Pi</span></div>
+</section>
+
+<!-- ───────────────────────────── 06 ───────────────────────────── -->
+<section class="page">
+  <div class="label">06 · Install LUMEN</div>
+  <h1><span class="n">06</span>Three commands</h1>
+  <p class="lead">The code is public on GitHub. You fetch it straight onto the Pi, then a script turns it into a service that starts on its own at every boot.</p>
+  <div class="cmd"><div class="head"><span>Fetch and install</span><span>Pi</span></div>
+<pre><span class="p">$</span> sudo apt-get install -y git
+<span class="p">$</span> git clone https://github.com/lnyssen/lumen.git ~/lumen
+<span class="p">$</span> cd ~/lumen &amp;&amp; ./setup-service.sh</pre></div>
+  <h2>What the script does</h2>
+  <table class="kv">
+    <tr><td>numpy</td><td>Installs it if needed (once, about a minute). The animation engine relies on it to stay fluid on a small Pi.</td></tr>
+    <tr><td>lumen</td><td>The main service: the animation engine and the server on port <b>8000</b>. Restarted automatically if it ever stops.</td></tr>
+    <tr><td>lumen-alexa</td><td>The voice-control service (step 08). Harmless if you have no Echo.</td></tr>
+    <tr><td>Update rights</td><td>Lets the app restart the service after an update sent from the phone (step 09).</td></tr>
+  </table>
+  <div class="cmd"><div class="head"><span>Check that it runs</span><span>Pi</span></div>
+<pre><span class="p">$</span> systemctl status lumen</pre></div>
+  <p>You should read <b>active (running)</b>. From then on, the Pi runs the show by itself.</p>
+  <div class="note">
+    <span class="tag">Another username?</span>
+    <code>setup-service.sh</code> assumes the user <b>laurent</b> and the folder <code>/home/laurent/lumen</code>. If you chose another name, replace both in the script before running it.
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>06</b> · Install</span></div>
+</section>
+
+<!-- ───────────────────────────── 07 ───────────────────────────── -->
+<section class="page">
+  <div class="label">07 · Use it</div>
+  <h1><span class="n">07</span>From your phone</h1>
+  <ol class="steps">
+    <li><b>Same network</b>Your phone must be on the same Wi-Fi as the Pi and the controller.</li>
+    <li><b>Open the app</b>In the browser, go to <code>http://lumen.local:8000</code> (or the Pi's IP address, port 8000).</li>
+    <li><b>Point it at the panel</b>Open <b>Adresse du panneau</b> (panel address) and enter the controller's name or IP from step 04. The top of the screen then reads <b>En ligne</b> (online).</li>
+    <li><b>Keep it on the home screen</b>Share → <b>Add to Home Screen</b>. LUMEN then opens full-screen, like an app.</li>
+  </ol>
+  <h2>The screen</h2>
+  <p>A live preview of the panel, then the <b>Animation</b> and the <b>Palette</b>, and the sliders that shape the current animation (speed, scale, blend…). Along the bottom:</p>
+  <table class="kv">
+    <tr><td>Pause</td><td>Freezes the current frame.</td></tr>
+    <tr><td>Veille</td><td>Sleep: switch off at a set time, or after 15 min, 30 min, 1 h.</td></tr>
+    <tr><td>Aléatoire</td><td>Random: LUMEN changes animation on its own.</td></tr>
+    <tr><td>Alimentation</td><td>Power: on / off.</td></tr>
+    <tr><td>Journée</td><td>Day: the mood follows the real hour, from dawn to night.</td></tr>
+    <tr><td>Scènes</td><td>Scenes: save the current look in a slot, recall it with a tap.</td></tr>
+    <tr><td>Lumière</td><td>Light: brightness, automatic adaptation to the room's light, <b>Ambiance sonore</b> (the object follows the room's mood: lively when it moves, calm in the silence), panel address and updates.</td></tr>
+  </table>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>07</b> · Use</span></div>
+</section>
+
+<!-- ───────────────────────────── 07 (suite) · 08 ───────────────────────────── -->
+<section class="page">
+  <div class="label">07 · The animations</div>
+  <h1>Nearly forty, in families</h1>
+  <table class="kv">
+    <tr><td>Son · sound</td><td>Spectre, Pulse, Onde — they listen through the microphone.</td></tr>
+    <tr><td>Caméra · camera</td><td>Mirror, Silhouette, Trace — they watch through the webcam.</td></tr>
+    <tr><td>Créatif</td><td>Draw — paint the panel with your finger.</td></tr>
+    <tr><td>Géométrique</td><td>Plasma, Orb, Truchet, Moiré, Rings, Stripes, Glitch, Flow, Life, Checkers, Spiral, Star, Kaleido, Orbit.</td></tr>
+    <tr><td>Minimal</td><td>Sequence, Sweep, Bars, Static, Lines, Sine.</td></tr>
+    <tr><td>Math</td><td>Lissajous, Hilbert, reaction–diffusion, EKG.</td></tr>
+    <tr><td>Temps · time</td><td>Aujourd'hui (today), Weather, test card, Timecode, two clocks.</td></tr>
+    <tr><td>Texte</td><td>Your own words, scrolling.</td></tr>
+  </table>
+  <p style="margin-top:3mm">Any animation can be worn in any of the <b>66 palettes</b>. The camera and sound families need the optional webcam and microphone; the others need nothing else.</p>
+
+  <div class="label" style="margin-top:7mm">08 · Voice control</div>
+  <h1><span class="n">08</span>With an Echo</h1>
+  <p class="lead">Fully local: no cloud, no account to link. The Pi poses as a few smart plugs that the Echo finds on its own.</p>
+  <ol class="steps">
+    <li><b>Discover</b>Once installed, say: <i>"Alexa, discover devices."</i> The LUMEN plugs appear.</li>
+    <li><b>Speak</b>Switch the panel on or off, or call a mode: day, random, music, plasma. The plugs carry French names (<i>Lumen, Journée, Aléatoire, Musique, Plasma</i>) — say them as written.</li>
+  </ol>
+  <div class="foot"><span>LUMEN — Setup guide</span><span><b>07–08</b> · Play</span></div>
+</section>
+
+<!-- ───────────────────────────── 09 · 10 ───────────────────────────── -->
+<section class="page">
+  <div class="label">09 · Update</div>
+  <h1><span class="n">09</span>Two ways</h1>
+  <h2>From the Pi</h2>
+  <div class="cmd"><div class="head"><span>Fetch the latest version</span><span>Pi</span></div>
+<pre><span class="p">$</span> cd ~/lumen &amp;&amp; git pull &amp;&amp; ./setup-service.sh</pre></div>
+  <h2>From the phone</h2>
+  <p>Open <b>Lumière</b> → <b>Mettre à jour l'app depuis ce téléphone</b> (update from this phone), or go straight to <code>http://lumen.local:8000/update</code>. Choose the update's <code>.zip</code> file and confirm: the Pi installs it and restarts by itself. Reload the app five seconds later.</p>
+
+  <div class="label" style="margin-top:7mm">10 · Troubleshooting</div>
+  <h1><span class="n">10</span>If it gets stuck</h1>
+  <table class="kv">
+    <tr><td>lumen.local not found</td><td>The Pi takes a minute or two to appear after power-on. Check it is on the right Wi-Fi; as a last resort, use its IP address.</td></tr>
+    <tr><td>Blank page</td><td>On the Pi, <code>systemctl status lumen</code> should read active (running). If not, run <code>./setup-service.sh</code> again.</td></tr>
+    <tr><td>Panel stays black</td><td>Check the 5 V and the ribbon on X1. In WLED, a test effect should light the panel on its own.</td></tr>
+    <tr><td>The app says offline</td><td>The panel address is wrong, or the controller changed IP: enter its <code>wled-xxxxxx.local</code> name instead.</td></tr>
+    <tr><td>Old version on the phone</td><td>Open the app once in a private tab, or remove and re-add the home-screen icon.</td></tr>
+    <tr><td>No camera / no sound</td><td>Check the USB webcam or microphone is plugged into the Pi. They switch on only when an animation needs them.</td></tr>
+  </table>
+  <div class="note">
+    <span class="tag">The golden rule</span>
+    Go link by link: panel (does it light?), controller (does WLED answer?), network (same Wi-Fi?), Pi (is the service running?), app (right panel address?). Find the link, and you have found the fault.
+  </div>
+  <div class="foot"><span>LUMEN — Setup guide · github.com/lnyssen/lumen</span><span><b>09–10</b> · Keep it running</span></div>
+</section>
+
+<script>
+  // The cover's dot matrix: a slice of the panel, a few pixels lit.
+  const g = document.getElementById('dots');
+  const lit = (x, y) => {
+    const dx = x - 7.5, dy = y - 5.5;
+    return Math.abs(Math.hypot(dx, dy) - 4.6) < 0.9 || Math.abs(Math.hypot(dx, dy) - 1.5) < 0.6;
+  };
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 16; x++) {
+    const i = document.createElement('i');
+    i.style.opacity = lit(x, y) ? 1 : 0.12;
+    g.appendChild(i);
+  }
+</script>
+</body>
+</html>
