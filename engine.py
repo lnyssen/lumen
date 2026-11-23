@@ -15,6 +15,7 @@ a 2-3 images/seconde sur un Pi 3 A+.
 import json
 import math
 import os
+import re
 import socket
 import struct
 import threading
@@ -25,6 +26,7 @@ import urllib.request
 
 import numpy as np
 
+import claude_usage
 import sensors
 
 W = H = 64
@@ -1523,6 +1525,82 @@ def snd_onde(t, p, dt):
     PIX[:] = pal(np.clip(m * 0.92 + halo, 0.0, 1.0) * 0.94 + 0.04)
 
 
+# --- limites d'usage de Claude ---
+# Les donnees viennent de claude_usage.py (collecte sur le Pi). Les pourcentages
+# de l'API sont affiches tels quels ; la couleur des barres est semantique
+# (vert / orange / rouge), le texte suit la palette.
+_CL_STALE_S = 15 * 60
+
+
+def _put(s, x, y, scale, col):
+    m = np.zeros((H, W), dtype=np.float32)
+    _blit(m, s, x, y, scale)
+    PIX[m > 0] = col
+
+
+def _put_right(s, y, scale, col, margin=2):
+    w = len(s) * 4 * scale - scale
+    _put(s, W - margin - w, y, scale, col)
+
+
+def _put_center(s, y, scale, col):
+    w = len(s) * 4 * scale - scale
+    _put(s, (W - w) // 2, y, scale, col)
+
+
+def _cl_reset_txt(epoch, now):
+    if not epoch:
+        return "?"
+    s = max(0, int(epoch - now))
+    d, h, m = s // 86400, (s % 86400) // 3600, (s % 3600) // 60
+    return f"{d}J {h}H" if d > 0 else f"{h}H{m:02d}"
+
+
+def _cl_color(pct):
+    return (255, 40, 30) if pct >= 90 else (255, 150, 20) if pct >= 70 else (40, 220, 80)
+
+
+def _cl_block(y0, label, lim, now, f):
+    _put(label, 2, y0, 1, pal(0.45) * f)
+    pct = lim["pct"] if lim else None
+    _put_right(f"{pct}%" if pct is not None else "--", y0, 2, pal(1.0) * f)
+    by = y0 + 13
+    PIX[by:by + 6, 2:W - 2] = 38 * f
+    if pct is not None:
+        w = int(round((W - 4) * min(max(pct, 0), 100) / 100.0))
+        if pct > 0:
+            w = max(w, 2)
+        PIX[by:by + 6, 2:2 + w] = np.array(_cl_color(pct), dtype=np.float32) * f
+    _put("RESET " + _cl_reset_txt(lim["reset"] if lim else None, now), 2, y0 + 22, 1, pal(0.45) * f)
+
+
+def claude(t, p, dt):
+    """Limites d'usage de Claude : session 5 h et semaine, barres + compte a rebours."""
+    st = claude_usage.snapshot()
+    now = time.time()
+    PIX[:] = 0
+    if not st["enabled"]:
+        _put_center("CLAUDE", 20, 2, pal(1.0))
+        _put_center("A CONFIGURER", 40, 1, pal(0.45))
+        return
+    if not st["five"] and not st["seven"]:
+        err = st["error"] or ""
+        m = re.match(r"HTTP (\d+)", err)
+        if m:                                   # le code HTTP aide a diagnostiquer, meme sur le panneau
+            _put_center("ERR", 14, 3, (255, 40, 30))
+            _put_center(m.group(1), 34, 3, (255, 40, 30))
+        elif err:
+            _put_center("ERREUR", 26, 2, (255, 40, 30))
+        else:
+            _put_center("CLAUDE", 20, 2, pal(1.0))
+            _put_center("...", 40, 2, pal(0.45))
+        return
+    stale = not st["fetched_at"] or now - st["fetched_at"] > _CL_STALE_S
+    f = 0.35 if stale else 1.0                  # donnees perimees : tout s'assombrit
+    _cl_block(2, "5H", st["five"], now, f)
+    _cl_block(34, "SEM", st["seven"], now, f)
+
+
 ANIMS = {
     "orb": orb,
     "plasma": plasma, "truchet": truchet, "moire": moire, "rings": rings,
@@ -1535,7 +1613,7 @@ ANIMS = {
     "clock2": clock2, "text": text, "photo": photo, "weather": weather,
     "mirror": cam_mirror, "silhouette": cam_silhouette, "trace": cam_trace,
     "spectre": snd_spectre, "pulse": snd_pulse, "onde": snd_onde,
-    "aujourdhui": aujourdhui, "sequence": sequence,
+    "aujourdhui": aujourdhui, "sequence": sequence, "claude": claude,
 }
 
 
@@ -1594,7 +1672,7 @@ STATE = State()
 # d'une saisie exterieure (photo envoyee depuis le telephone, texte a lire).
 SHUFFLE_POOL = [k for k in ANIMS if k not in (
     "photo", "text", "timecode", "mirror", "silhouette", "trace",
-    "spectre", "pulse", "onde", "aujourdhui")]
+    "spectre", "pulse", "onde", "aujourdhui", "claude")]
 
 
 def render_loop(fps=25):

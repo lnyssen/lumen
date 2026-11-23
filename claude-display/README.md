@@ -1,4 +1,8 @@
-# Afficheur Claude pour LUMEN
+# Écran ESP32 optionnel pour les limites de Claude
+
+> Le panneau LED de LUMEN affiche déjà ces valeurs (animation `claude`, voir le README principal).
+> Ce dossier ne sert que si tu veux **en plus** un petit écran à part.
+> La collecte et le jeton sont décrits dans le README principal, section « Limites d'usage de Claude ».
 
 Petit écran ESP32 (Waveshare ESP32-S3-Touch-LCD-1.54, 240 × 240) qui montre les limites
 d'usage de Claude : session de 5 h et quota hebdomadaire, avec les comptes à rebours.
@@ -32,25 +36,14 @@ bibliothèque `GFX_Library_for_Arduino` 1.6.0. Copie `claude-display/secrets.h.e
 Le moniteur série affiche l'adresse IP de la carte.
 
 ### 2. Le Pi
-```bash
-mkdir -p ~/.config/lumen && chmod 700 ~/.config/lumen
-cat > ~/.config/lumen/claude.json <<'JSON'
+Fais d'abord les étapes 1 à 3 du README principal (config et jeton), puis déclare l'écran dans
+`~/.config/lumen/claude.json` :
+```json
 { "device_host": "claudeusage.local", "device_key": "LA-MEME-CLE" }
-JSON
-chmod 600 ~/.config/lumen/claude.json
 ```
 Si `claudeusage.local` ne se résout pas depuis le Pi, mets l'IP de la carte dans `device_host`.
 
-### 3. Le jeton (depuis ton Mac, sans jamais l'afficher)
-```bash
-security find-generic-password -s "Claude Code-credentials" -w \
- | python3 -c 'import sys,json; print(json.load(sys.stdin)["claudeAiOauth"]["accessToken"])' \
- | ssh <utilisateur>@<ip-du-pi> 'umask 077; mkdir -p ~/.config/lumen; cat > ~/.config/lumen/claude-token'
-```
-Cet élément du Trousseau contient aussi les jetons d'autres services connectés : on n'extrait
-que `claudeAiOauth.accessToken`. Format observé sur un Mac réel, non documenté.
-
-### 4. Vérifier
+### 3. Vérifier
 ```bash
 sudo systemctl restart lumen
 curl http://<ip-du-pi>:8000/api/claude

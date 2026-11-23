@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-LUMEN — afficheur de limites Claude (ESP32)
+LUMEN — limites d'usage de Claude
 
 Le Pi interroge l'endpoint d'usage de Claude (NON documente officiellement par
-Anthropic : il peut changer sans preavis) puis pousse deux pourcentages et
-deux comptes a rebours vers un petit ecran ESP32 (dossier claude-display/).
-L'ecran ne detient jamais le jeton.
+Anthropic : il peut changer sans preavis). Les valeurs servent a l'animation
+« claude » du panneau LED (engine.py) et, en option, sont poussees vers un
+petit ecran ESP32 (dossier claude-display/). Aucun appareil ne detient le
+jeton en dehors du Pi.
 
 Tout est en bibliotheque standard. Desactive tant que le fichier de config
 n'existe pas.
 
 Configuration, HORS du dossier servi par server.py (qui sert tout le depot en
 HTTP : un secret place ici serait telechargeable depuis le reseau) :
-  ~/.config/lumen/claude.json   {"device_host": "...", "device_key": "..."}
+  ~/.config/lumen/claude.json   {} suffit pour le panneau LED ; ajoute "device_host" et
+                                "device_key" pour envoyer aussi les valeurs a un ecran ESP32
   ~/.config/lumen/claude-token  le jeton d'acces OAuth, seul, sur une ligne
 Dossier alternatif : variable d'environnement LUMEN_CONFIG_DIR.
 """
@@ -186,7 +188,7 @@ def _loop():
                     _set(error=f"{type(e).__name__} : {str(e)[:100]}")
                     next_fetch = now + 120
 
-        if data and now >= next_push:
+        if data and conf["device_key"] and now >= next_push:   # ecran ESP32 optionnel
             _set(device=push_device(conf, data) or "ok")
             next_push = now + PUSH_EVERY
 

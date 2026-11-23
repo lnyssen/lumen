@@ -1611,6 +1611,7 @@ const ANIM = {
     brush:{v:2,min:1,max:6,step:1,label:'Pinceau'}}},
   weather: {name:'Météo', render:renderWeather, params:{}},
   aujourdhui: {name:"Aujourd'hui", icon:'aujourdhui', render:renderAujourdhui, params:{}},
+  claude: {name:'Claude', remote:true, render:renderRemote, params:{}},
   plasma:  {name:'Plasma',  render:renderPlasma,  params:{
     speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
     freq: {v:14,min:4,max:30,step:0.5,label:'Échelle'},
@@ -1773,7 +1774,7 @@ const ANIM_GROUPS = [
   {cat: 'GÉOMÉTRIQUE', items: ['plasma','orb','truchet','moire','rings','stripes','glitch','flow','life','checkers','spiral','star','kaleido','orbit']},
   {cat: 'MINIMAL',     items: ['sequence','sweep','bars','static','lines','sine']},
   {cat: 'MATH',        items: ['lissajous','hilbert','rd','ekg']},
-  {cat: 'TEMPS',       items: ['aujourdhui','weather','mire','timecode','clock','clock2']},
+  {cat: 'TEMPS',       items: ['aujourdhui','weather','claude','mire','timecode','clock','clock2']},
   {cat: 'TEXTE',       items: ['text']}
 ];
 
@@ -2371,7 +2372,7 @@ let poweredOn = true;
 /* ============ PONT VERS LE PI : envoi de l'état au serveur ============ */
 // animations connues du moteur Python (engine.py). Les autres (draw, photo)
 // passent par /api/image ; on n'envoie pas leur nom en 'anim' pour éviter un rejet.
-const PANEL_ANIMS = new Set(['aujourdhui','spectre','pulse','onde','mirror','silhouette','trace','orb','plasma','truchet','moire','rings','stripes','glitch','flow','life',
+const PANEL_ANIMS = new Set(['aujourdhui','claude','spectre','pulse','onde','mirror','silhouette','trace','orb','plasma','truchet','moire','rings','stripes','glitch','flow','life',
   'checkers','spiral','star','kaleido','orbit','sequence','sweep','bars','static','lines','sine',
   'lissajous','hilbert','rd','ekg','mire','timecode','clock','clock2','text','weather','photo']);
 let pushTimer = null;
