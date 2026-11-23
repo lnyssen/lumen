@@ -15,6 +15,7 @@ a 2-3 images/seconde sur un Pi 3 A+.
 import json
 import math
 import os
+import re
 import socket
 import struct
 import threading
@@ -25,6 +26,7 @@ import urllib.request
 
 import numpy as np
 
+import claude_usage
 import sensors
 
 W = H = 64
@@ -1523,6 +1525,214 @@ def snd_onde(t, p, dt):
     PIX[:] = pal(np.clip(m * 0.92 + halo, 0.0, 1.0) * 0.94 + 0.04)
 
 
+# --- limites d'usage de Claude ---
+# Les donnees viennent de claude_usage.py (collecte sur le Pi). Six ecrans au choix
+# (parametre « ecran », 1 a 6) ou defilement automatique (parametre « defile »).
+# Les pourcentages de l'API sont affiches tels quels ; la couleur des barres est
+# semantique (vert / orange / rouge), le texte suit la palette.
+_CL_STALE_S = 15 * 60
+_CL_SCROLL_S = 8                      # duree de chaque ecran en mode defilement
+_CL_WIN5, _CL_WIN7 = 18000, 604800    # durees supposees d'apres five_hour / seven_day (non confirmees)
+_CL_ANG = np.arctan2(_dx, -_dy) % (2 * math.pi)   # angle depuis midi, sens horaire
+_CL_TRACK = 38.0
+
+
+def _put(s, x, y, scale, col, shadow=False):
+    if shadow:
+        sh = np.zeros((H, W), dtype=np.float32)
+        _blit(sh, s, x + 1, y + 1, scale)
+        PIX[sh > 0] = 0
+    m = np.zeros((H, W), dtype=np.float32)
+    _blit(m, s, x, y, scale)
+    PIX[m > 0] = col
+
+
+def _twidth(s, scale):
+    return len(s) * 4 * scale - scale
+
+
+def _put_right(s, y, scale, col, margin=2):
+    _put(s, W - margin - _twidth(s, scale), y, scale, col)
+
+
+def _put_center(s, y, scale, col, shadow=False):
+    _put(s, (W - _twidth(s, scale)) // 2, y, scale, col, shadow)
+
+
+def _cl_reset_txt(secs):
+    if secs is None:
+        return "?"
+    s = max(0, int(secs))
+    d, h, m = s // 86400, (s % 86400) // 3600, (s % 3600) // 60
+    return f"{d}J {h}H" if d > 0 else f"{h}H{m:02d}"
+
+
+def _cl_color(pct):
+    return (255, 40, 30) if pct >= 90 else (255, 150, 20) if pct >= 70 else (40, 220, 80)
+
+
+def _cl_pct_txt(pct):
+    return f"{int(pct)}%" if pct is not None else "--"
+
+
+def _cl_bar(x0, y0, w, h, pct):
+    PIX[y0:y0 + h, x0:x0 + w] = _CL_TRACK
+    if pct:
+        n = max(2, int(round(w * min(max(pct, 0), 100) / 100.0)))
+        PIX[y0:y0 + h, x0:x0 + n] = _cl_color(pct)
+
+
+def _cl_expected(secs, win):
+    """Part de la fenetre ecoulee, en % : ou l'on en serait a rythme regulier."""
+    return int(round(100 * (1 - min(secs, win) / float(win))))
+
+
+# --- ecran 1 : classique ---
+def _cl_s_classic(v5, v7, t, now):
+    for y0, label, (pct, secs) in ((2, "5H", v5), (34, "SEM", v7)):
+        _put(label, 2, y0, 1, pal(0.45))
+        _put_right(_cl_pct_txt(pct), y0, 2, pal(1.0))
+        _cl_bar(2, y0 + 13, W - 4, 6, pct)
+        _put("RESET " + _cl_reset_txt(secs), 2, y0 + 22, 1, pal(0.45))
+
+
+# --- ecran 2 : anneaux (session a l'exterieur, semaine a l'interieur) ---
+def _cl_s_rings(v5, v7, t, now):
+    for (r0, r1), (pct, _) in (((26, 31.5), v5), ((18, 23.5), v7)):
+        ring = (_hyp >= r0) & (_hyp < r1)
+        PIX[ring] = _CL_TRACK
+        if pct:
+            PIX[ring & (_CL_ANG <= 2 * math.pi * min(pct, 100) / 100.0)] = _cl_color(pct)
+    p5 = v5[0]
+    _put_center(_cl_pct_txt(p5), 20, 2, _cl_color(p5) if p5 is not None else pal(0.45))
+    _put_center("SEM " + (str(int(v7[0])) if v7[0] is not None else "--"), 36, 1, pal(0.45))
+
+
+# --- ecran 3 : allure (le trait blanc marque le rythme regulier) ---
+def _cl_s_pace(v5, v7, t, now):
+    for y0, label, (pct, secs), win in ((2, "5H", v5, _CL_WIN5), (34, "SEM", v7, _CL_WIN7)):
+        _put(label, 2, y0, 1, pal(0.45))
+        _put_right(_cl_pct_txt(pct), y0, 2, pal(1.0))
+        by = y0 + 13
+        _cl_bar(2, by, W - 4, 6, pct)
+        if pct is None or secs is None:
+            continue
+        ex = _cl_expected(secs, win)
+        tx = 2 + int(round((W - 4) * ex / 100.0))
+        PIX[by - 2:by + 8, min(tx, W - 2):min(tx, W - 2) + 1] = 255
+        margin = ex - int(pct)
+        if margin >= 5:
+            _put(f"MARGE +{margin}", 2, y0 + 23, 1, (40, 220, 80))
+        elif margin > -5:
+            _put("AU RYTHME", 2, y0 + 23, 1, pal(0.45))
+        else:
+            _put(f"TROP VITE {margin}", 2, y0 + 23, 1, (255, 40, 30))
+
+
+# --- ecran 4 : grand chiffre (la limite la plus proche d'etre atteinte) ---
+def _cl_s_big(v5, v7, t, now):
+    wk = (v7[0] if v7[0] is not None else -1) > (v5[0] if v5[0] is not None else -1)
+    (pct, secs), (opct, _) = (v7, v5) if wk else (v5, v7)
+    col = _cl_color(pct) if pct is not None else pal(0.45)
+    PIX[0:3, :] = col
+    _put_center("SEMAINE" if wk else "SESSION 5H", 6, 1, pal(0.45))
+    _put_center(_cl_pct_txt(pct), 14, 5, col)
+    _put_center("RESET " + _cl_reset_txt(secs), 43, 1, pal(1.0))
+    _put("5H" if wk else "SEM", 2, 52, 1, pal(0.45))
+    _put_right(_cl_pct_txt(opct), 52, 1, pal(0.45))
+    _cl_bar(2, 58, W - 4, 4, opct)
+
+
+# --- ecran 5 : reservoirs ---
+def _cl_s_tubes(v5, v7, t, now):
+    for x0, label, (pct, _) in ((6, "5H", v5), (36, "SEM", v7)):
+        cx = x0 + 11
+        txt = _cl_pct_txt(pct)
+        _put(txt, cx - _twidth(txt, 2) // 2, 2, 2, _cl_color(pct) if pct is not None else pal(0.45))
+        top, bot = 16, 54
+        PIX[top:bot, x0:x0 + 22] = 22
+        h = int(round((bot - top) * min(pct or 0, 100) / 100.0))
+        if h:
+            col = np.array(_cl_color(pct), dtype=np.float32)
+            PIX[bot - h:bot, x0:x0 + 22] = col * 0.9
+            PIX[bot - h:bot - h + 1, x0:x0 + 22] = col
+        for yy in range(top, bot, 8):
+            PIX[yy, x0:x0 + 3] = 140
+        PIX[top:bot, x0] = 90
+        PIX[top:bot, x0 + 21] = 90
+        PIX[bot - 1, x0:x0 + 22] = 90
+        _put(label, cx - _twidth(label, 1) // 2, 57, 1, pal(0.45))
+
+
+# --- ecran 6 : liquide (le niveau suit la session, la semaine est sur le bord droit) ---
+def _cl_s_liquid(v5, v7, t, now):
+    pct = v5[0] or 0
+    lvl = H - H * min(pct, 100) / 100.0
+    surf = lvl + 1.6 * np.sin(_xx * 0.32 + t * 2.0) + 0.8 * np.sin(_xx * 0.13 - t * 1.3)
+    liq = _yy >= surf
+    base = np.array(_cl_color(pct), dtype=np.float32)
+    depth = np.clip((_yy - surf) / 40.0, 0, 1)[..., None]
+    PIX[liq] = (base * (0.95 - 0.5 * depth))[liq]
+    edge = liq & (_yy < surf + 1.2)
+    PIX[edge] = np.minimum(base * 1.15, 255)
+    PIX[:, 59:62] = 30
+    p7 = v7[0] or 0
+    hh = int(round(H * min(p7, 100) / 100.0))
+    if hh:
+        PIX[H - hh:, 59:62] = _cl_color(p7)
+    _put("5H", 2, 2, 1, 255, True)
+    _put("SEM", 41, 2, 1, 255, True)
+    _put_center(_cl_pct_txt(v5[0]), 12, 4, 255, True)
+    _put(_cl_reset_txt(v5[1]), 2, 57, 1, 255, True)
+
+
+_CL_SCREENS = (_cl_s_classic, _cl_s_rings, _cl_s_pace, _cl_s_big, _cl_s_tubes, _cl_s_liquid)
+
+
+def _cl_vals(lim, now):
+    if not lim:
+        return (None, None)
+    secs = max(0.0, lim["reset"] - now) if lim.get("reset") else None
+    return (lim["pct"], secs)
+
+
+def claude(t, p, dt):
+    """Limites d'usage de Claude : six ecrans au choix (« ecran » 1-6) ou defilement (« defile »)."""
+    st = claude_usage.snapshot()
+    now = time.time()
+    PIX[:] = 0
+    if not st["enabled"]:
+        _put_center("CLAUDE", 20, 2, pal(1.0))
+        _put_center("A CONFIGURER", 40, 1, pal(0.45))
+        return
+    if not st["five"] and not st["seven"]:
+        err = st["error"] or ""
+        m = re.match(r"HTTP (\d+)", err)
+        if m:                                   # le code HTTP aide a diagnostiquer, meme sur le panneau
+            _put_center("ERR", 14, 3, (255, 40, 30))
+            _put_center(m.group(1), 34, 3, (255, 40, 30))
+        elif err:
+            _put_center("ERREUR", 26, 2, (255, 40, 30))
+        else:
+            _put_center("CLAUDE", 20, 2, pal(1.0))
+            _put_center("...", 40, 2, pal(0.45))
+        return
+    try:
+        n = int(float(p.get("ecran", 1)))
+    except (TypeError, ValueError):
+        n = 1
+    try:
+        scroll = float(p.get("defile", 0)) > 0.5
+    except (TypeError, ValueError):
+        scroll = False
+    if scroll:
+        n = int(now // _CL_SCROLL_S) % len(_CL_SCREENS) + 1
+    n = min(max(n, 1), len(_CL_SCREENS))
+    _CL_SCREENS[n - 1](_cl_vals(st["five"], now), _cl_vals(st["seven"], now), t, now)
+    if not st["fetched_at"] or now - st["fetched_at"] > _CL_STALE_S:
+        PIX[:] *= 0.35                          # donnees perimees : tout s'assombrit
+
+
 ANIMS = {
     "orb": orb,
     "plasma": plasma, "truchet": truchet, "moire": moire, "rings": rings,
@@ -1535,7 +1745,7 @@ ANIMS = {
     "clock2": clock2, "text": text, "photo": photo, "weather": weather,
     "mirror": cam_mirror, "silhouette": cam_silhouette, "trace": cam_trace,
     "spectre": snd_spectre, "pulse": snd_pulse, "onde": snd_onde,
-    "aujourdhui": aujourdhui, "sequence": sequence,
+    "aujourdhui": aujourdhui, "sequence": sequence, "claude": claude,
 }
 
 
@@ -1594,7 +1804,7 @@ STATE = State()
 # d'une saisie exterieure (photo envoyee depuis le telephone, texte a lire).
 SHUFFLE_POOL = [k for k in ANIMS if k not in (
     "photo", "text", "timecode", "mirror", "silhouette", "trace",
-    "spectre", "pulse", "onde", "aujourdhui")]
+    "spectre", "pulse", "onde", "aujourdhui", "claude")]
 
 
 def render_loop(fps=25):

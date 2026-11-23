@@ -12,6 +12,7 @@ API :
   POST /api/audio          -> niveau sonore courant { level: 0..1 } — haute frequence, pas de sauvegarde disque
   POST /api/image          -> envoie une photo (64x64x3 octets RGB bruts), bascule sur anim=photo
   GET  /wled/info?ip=...   -> proxy (test de connexion)
+  GET  /api/claude         -> derniers pourcentages Claude pousses vers l'ecran ESP32 (voir claude_usage.py)
 """
 
 import http.server
@@ -28,6 +29,7 @@ import zipfile
 
 import numpy as np
 
+import claude_usage
 import engine
 
 PORT = 8000
@@ -146,6 +148,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             st["anims"] = list(engine.ANIMS.keys())
             st["palettes"] = engine.PALETTE_NAMES
             return self._json(200, st)
+
+        if p.path == "/api/claude":
+            return self._json(200, claude_usage.snapshot())
 
         if p.path == "/wled/info":
             qs = urllib.parse.parse_qs(p.query)
@@ -304,6 +309,7 @@ if __name__ == "__main__":
     print(f"  {len(engine.ANIMS)} animations · {len(engine.PALETTES)} palettes")
     load_state()
     engine.start()
+    claude_usage.start()
     print(f"  moteur demarre · http://0.0.0.0:{PORT}")
     with Server(("", PORT), Handler) as httpd:
         httpd.serve_forever()

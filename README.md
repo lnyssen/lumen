@@ -28,6 +28,10 @@ web — on peut le fermer, le panneau continue de tourner.
   prises Belkin WeMo que l'Echo découvre seul sur le réseau local.
 - **`index.html`** — l'app (PWA autonome, aucune dépendance).
 - **`palettes.json`** — les palettes de couleurs.
+- **`claude_usage.py`** — collecte des limites d'usage de Claude sur le Pi, pour l'animation `claude`
+  du panneau (voir « Limites d'usage de Claude » plus bas).
+- **`claude-display/`** — option : un petit écran ESP32 qui affiche les mêmes valeurs
+  ([claude-display/README.md](claude-display/README.md)).
 
 ## Animations
 
@@ -37,7 +41,7 @@ web — on peut le fermer, le panneau continue de tourner.
 |---|---|
 | Génératif | `plasma` `truchet` `moire` `rings` `stripes` `glitch` `flow` `life` `checkers` `spiral` `star` `kaleido` `orbit` `orb` |
 | Géométrique | `sweep` `bars` `static` `lines` `sine` `lissajous` `hilbert` `rd` `ekg` `mire` |
-| Information | `clock` `clock2` `timecode` `text` `photo` `weather` `aujourdhui` |
+| Information | `clock` `clock2` `timecode` `text` `photo` `weather` `aujourdhui` `claude` |
 | Caméra | `mirror` `silhouette` `trace` |
 | Son | `spectre` `pulse` `onde` |
 
@@ -52,6 +56,7 @@ Modes transverses : **journée** (l'ambiance suit l'heure réelle), **aléatoire
 - Optionnel : webcam USB (testé sur Logitech C270) pour les animations caméra
 - Optionnel : micro USB pour le mode sonore
 - Optionnel : Amazon Echo (2ᵉ/3ᵉ gén.) pour la commande vocale
+- Optionnel : écran ESP32 Waveshare 1,54" en plus du panneau, pour les limites d'usage de Claude (voir `claude-display/`)
 
 ## Installation
 
@@ -83,6 +88,7 @@ si l'objet se déplace.
 | `POST` | `/api/audio` | niveau sonore courant `{ level: 0..1 }` (haute fréquence, non persisté) |
 | `POST` | `/api/image` | envoie une photo (64×64×3 octets RGB bruts), bascule sur `anim=photo` |
 | `GET` | `/wled/info?ip=…` | proxy WLED (test de connexion) |
+| `GET` | `/api/claude` | dernières limites d'usage de Claude, état de la collecte et dernière erreur (désactivé sans config) |
 
 ## Commande vocale
 
@@ -93,6 +99,51 @@ prises virtuelles apparaissent :
 - « Alexa, allume Journée » / « Aléatoire » / « Musique » / « Plasma »
 
 Entièrement local, aucune dépendance hors bibliothèque standard Python.
+
+## Limites d'usage de Claude
+
+L'animation `claude` montre sur le panneau la **session de 5 h** et le **quota hebdomadaire** :
+pourcentage, barre (verte, orange dès 70 %, rouge dès 90 %) et compte à rebours avant le reset.
+
+Six écrans au choix (curseur **Écran**, 1 à 6) ou **Défilement** automatique (8 s par écran) :
+1 classique · 2 anneaux · 3 allure (un trait blanc marque le rythme régulier, d'après des
+fenêtres supposées de 5 h et 7 jours, non confirmées) · 4 grand chiffre · 5 réservoirs · 6 liquide.
+Tout tourne sur le Pi : il interroge l'API de Claude toutes les 5 min, sans service tiers.
+Données plus vieilles que 15 min : l'affichage s'assombrit. Erreur sans données : `ERR` suivi du code HTTP.
+
+> **Avertissements** — L'endpoint d'usage de Claude **n'est pas documenté officiellement** : il peut
+> changer ou refuser un jeton sans préavis, et le message du serveur est visible sur `/api/claude`.
+> Le jeton OAuth donne accès à ton compte ; sa durée de validité n'est pas documentée et son
+> renouvellement n'est pas géré : s'il expire, remets-en un.
+
+**1. Configuration sur le Pi**, hors du dossier servi par `server.py` (qui publie tout le dépôt en HTTP) :
+
+```bash
+mkdir -p ~/.config/lumen && chmod 700 ~/.config/lumen
+echo '{}' > ~/.config/lumen/claude.json && chmod 600 ~/.config/lumen/claude.json
+```
+
+**2. Le jeton, depuis ton Mac, sans jamais l'afficher :**
+
+```bash
+security find-generic-password -s "Claude Code-credentials" -w \
+ | python3 -c 'import sys,json; print(json.load(sys.stdin)["claudeAiOauth"]["accessToken"])' \
+ | ssh <utilisateur>@<ip-du-pi> 'umask 077; mkdir -p ~/.config/lumen; cat > ~/.config/lumen/claude-token'
+```
+
+Cet élément du Trousseau contient aussi les jetons d'autres services : on n'extrait que
+`claudeAiOauth.accessToken`. Format observé sur un Mac réel, non documenté.
+
+**3. Redémarrer et vérifier :**
+
+```bash
+sudo systemctl restart lumen
+curl http://<ip-du-pi>:8000/api/claude     # "error": null et des pourcentages
+```
+
+Puis choisis **Claude** (catégorie « Temps ») dans l'app. Sans configuration, le panneau affiche
+`CLAUDE / A CONFIGURER`. Réglages optionnels dans `claude.json` : `interval` (secondes, 60 minimum),
+`token_file`, `user_agent`.
 
 ## Licence
 

@@ -1611,6 +1611,9 @@ const ANIM = {
     brush:{v:2,min:1,max:6,step:1,label:'Pinceau'}}},
   weather: {name:'Météo', render:renderWeather, params:{}},
   aujourdhui: {name:"Aujourd'hui", icon:'aujourdhui', render:renderAujourdhui, params:{}},
+  claude: {name:'Claude', icon:'claude', remote:true, render:renderRemote, params:{
+    ecran:{v:1,min:1,max:6,step:1,label:'Écran'},
+    defile:{v:0,type:'toggle',label:'Défilement'}}},
   plasma:  {name:'Plasma',  render:renderPlasma,  params:{
     speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
     freq: {v:14,min:4,max:30,step:0.5,label:'Échelle'},
@@ -1728,6 +1731,7 @@ const ICONS = {
   cam:      '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="7" cy="7.6" r="2.6"/><path d="M1.4 4.6h2.2l1-1.6h4.8l1 1.6h2.2v7.2H1.4z"/></svg>',
   orb:      '<svg viewBox="0 0 14 14" fill="none"><rect x="1.2" y="1.2" width="11.6" height="11.6" rx="1.6" stroke="currentColor" stroke-width="1.1" opacity=".45"/><circle cx="7" cy="7" r="3.4" fill="currentColor"/></svg>',
   draw:     '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12l1-3 6-6 2 2-6 6-3 1z"/><path d="M8.5 3.5l2 2"/></svg>',
+  claude: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><rect x="1.5" y="3" width="11" height="3" rx="1.5"/><rect x="1.5" y="8" width="11" height="3" rx="1.5"/><path d="M3.2 4.5h3.6M3.2 9.5h6" stroke-width="1.7"/></svg>',
   aujourdhui: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="2" y="2" width="10" height="10" rx="1.5"/><circle cx="7" cy="7" r="2.2"/><path d="M7 2v1.5M7 10.5V12M2 7h1.5M10.5 7H12"/></svg>',
   weather:  '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><path d="M5 1.2v1M5 8.8v.4M1.2 5h1M8 5h.4M2.4 2.4l.7.7M7 7l.5.5M7.5 2.4l-.7.7"/><path d="M6 10.5a2.3 2.3 0 0 1 .3-4.5 3 3 0 0 1 5.6 1.1 2 2 0 0 1-.4 3.4H6z" fill="currentColor" stroke="none" opacity=".5"/></svg>',
   spectrum: '<svg viewBox="0 0 14 14" fill="currentColor"><rect x="1.5" y="6" width="1.8" height="6" rx=".5"/><rect x="4.3" y="3" width="1.8" height="9" rx=".5"/><rect x="7.1" y="5" width="1.8" height="7" rx=".5"/><rect x="9.9" y="2" width="1.8" height="10" rx=".5"/></svg>',
@@ -1767,6 +1771,7 @@ const ICONS = {
 
 /* ====================== CATÉGORISATION DES ANIMATIONS ====================== */
 const ANIM_GROUPS = [
+  {cat: 'CLAUDE',      items: ['claude']},
   {cat: 'SON',         items: ['spectre','pulse','onde']},
   {cat: 'CAMÉRA',      items: ['mirror','silhouette','trace']},
   {cat: 'CRÉATIF',     items: ['draw']},
@@ -2371,7 +2376,7 @@ let poweredOn = true;
 /* ============ PONT VERS LE PI : envoi de l'état au serveur ============ */
 // animations connues du moteur Python (engine.py). Les autres (draw, photo)
 // passent par /api/image ; on n'envoie pas leur nom en 'anim' pour éviter un rejet.
-const PANEL_ANIMS = new Set(['aujourdhui','spectre','pulse','onde','mirror','silhouette','trace','orb','plasma','truchet','moire','rings','stripes','glitch','flow','life',
+const PANEL_ANIMS = new Set(['aujourdhui','claude','spectre','pulse','onde','mirror','silhouette','trace','orb','plasma','truchet','moire','rings','stripes','glitch','flow','life',
   'checkers','spiral','star','kaleido','orbit','sequence','sweep','bars','static','lines','sine',
   'lissajous','hilbert','rd','ekg','mire','timecode','clock','clock2','text','weather','photo']);
 let pushTimer = null;
@@ -2482,6 +2487,7 @@ function buildAnimCarousel(){
   const grid = document.getElementById('animGrid');
   grid.innerHTML = '';
 
+  function addPhoto(){
   // Photo reste a part : elle ouvre le selecteur de fichier au lieu
   // de lancer une animation calculee.
   const catPhoto = document.createElement('div');
@@ -2493,8 +2499,9 @@ function buildAnimCarousel(){
   grpPhoto.appendChild(makeAnimCell('photo', 'Photo',
     '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="12" height="9" rx="1.5"/><circle cx="7" cy="7.5" r="2.3"/><path d="M5 3l.8-1.3h2.4L9 3"/></svg>',
     ()=> document.getElementById('photoInput').click()));
+  }
 
-  for (const grp of ANIM_GROUPS){
+  ANIM_GROUPS.forEach((grp, gi) => {
     const cat = document.createElement('div');
     cat.className = 'anim-cat';
     cat.textContent = grp.cat.charAt(0) + grp.cat.slice(1).toLowerCase();
@@ -2506,7 +2513,8 @@ function buildAnimCarousel(){
       box.appendChild(makeAnimCell(id, ANIM[id].name, ICONS[ANIM[id].icon] || ICONS[id] || '',
         ()=> chooseAnim(id)));
     }
-  }
+    if (gi === 0) addPhoto();   // « Image » juste sous la première catégorie
+  });
   syncAnimBar();
 }
 
