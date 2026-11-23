@@ -28,6 +28,8 @@ web — on peut le fermer, le panneau continue de tourner.
   prises Belkin WeMo que l'Echo découvre seul sur le réseau local.
 - **`index.html`** — l'app (PWA autonome, aucune dépendance).
 - **`palettes.json`** — les palettes de couleurs.
+- **`claude_usage.py`** + **`claude-display/`** — afficheur physique des limites d'usage de Claude
+  (écran ESP32 alimenté par le Pi) ; voir [claude-display/README.md](claude-display/README.md).
 
 ## Animations
 
@@ -52,6 +54,7 @@ Modes transverses : **journée** (l'ambiance suit l'heure réelle), **aléatoire
 - Optionnel : webcam USB (testé sur Logitech C270) pour les animations caméra
 - Optionnel : micro USB pour le mode sonore
 - Optionnel : Amazon Echo (2ᵉ/3ᵉ gén.) pour la commande vocale
+- Optionnel : écran ESP32 Waveshare 1,54" pour les limites d'usage de Claude (voir `claude-display/`)
 
 ## Installation
 
@@ -83,6 +86,7 @@ si l'objet se déplace.
 | `POST` | `/api/audio` | niveau sonore courant `{ level: 0..1 }` (haute fréquence, non persisté) |
 | `POST` | `/api/image` | envoie une photo (64×64×3 octets RGB bruts), bascule sur `anim=photo` |
 | `GET` | `/wled/info?ip=…` | proxy WLED (test de connexion) |
+| `GET` | `/api/claude` | dernières limites Claude poussées vers l'écran ESP32 (désactivé sans config) |
 
 ## Commande vocale
 
