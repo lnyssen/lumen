@@ -1611,7 +1611,9 @@ const ANIM = {
     brush:{v:2,min:1,max:6,step:1,label:'Pinceau'}}},
   weather: {name:'Météo', render:renderWeather, params:{}},
   aujourdhui: {name:"Aujourd'hui", icon:'aujourdhui', render:renderAujourdhui, params:{}},
-  claude: {name:'Claude', icon:'claude', remote:true, render:renderRemote, params:{}},
+  claude: {name:'Claude', icon:'claude', remote:true, render:renderRemote, params:{
+    ecran:{v:1,min:1,max:6,step:1,label:'Écran'},
+    defile:{v:0,type:'toggle',label:'Défilement'}}},
   plasma:  {name:'Plasma',  render:renderPlasma,  params:{
     speed:{v:0.8,min:0,max:3,step:0.05,label:'Vitesse'},
     freq: {v:14,min:4,max:30,step:0.5,label:'Échelle'},

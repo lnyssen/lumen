@@ -104,6 +104,10 @@ Entièrement local, aucune dépendance hors bibliothèque standard Python.
 
 L'animation `claude` montre sur le panneau la **session de 5 h** et le **quota hebdomadaire** :
 pourcentage, barre (verte, orange dès 70 %, rouge dès 90 %) et compte à rebours avant le reset.
+
+Six écrans au choix (curseur **Écran**, 1 à 6) ou **Défilement** automatique (8 s par écran) :
+1 classique · 2 anneaux · 3 allure (un trait blanc marque le rythme régulier, d'après des
+fenêtres supposées de 5 h et 7 jours, non confirmées) · 4 grand chiffre · 5 réservoirs · 6 liquide.
 Tout tourne sur le Pi : il interroge l'API de Claude toutes les 5 min, sans service tiers.
 Données plus vieilles que 15 min : l'affichage s'assombrit. Erreur sans données : `ERR` suivi du code HTTP.
 
